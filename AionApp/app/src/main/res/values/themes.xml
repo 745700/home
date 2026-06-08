@@ -3,6 +3,9 @@
         <item name="android:statusBarColor">#1a1a2e</item>
         <item name="android:navigationBarColor">#1a1a2e</item>
         <item name="android:windowBackground">#1a1a2e</item>
+        <item name="colorPrimary">#ff8359</item>
+        <item name="colorPrimaryDark">#e0653a</item>
+        <item name="colorAccent">#ff8359</item>
     </style>
 
     <style name="Theme.AionChat.Launcher" parent="Theme.AionChat">
