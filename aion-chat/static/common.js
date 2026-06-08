@@ -74,11 +74,17 @@ if (window.parent !== window) {
   });
 }
 
+// ── localStorage-backed API for settings pages ──
 async function api(method, url, body) {
-  const opts = { method, headers: {"Content-Type": "application/json"} };
-  if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(url, opts);
-  return res.json();
+  const key = 'aion_' + url.replace('/api/', '').replace(/\//g, '_');
+  if (method === 'GET') {
+    return JSON.parse(localStorage.getItem(key) || 'null') || {};
+  }
+  if (method === 'PUT') {
+    localStorage.setItem(key, JSON.stringify(body));
+    return body;
+  }
+  return {};
 }
 
 function escHtml(s) {
@@ -107,12 +113,8 @@ function showToast(msg) {
 let _commonWs = null;
 let _wsHandlers = {};
 
-function connectCommonWS(extraHandler) {
-  const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  _commonWs = new WebSocket(`${proto}//${location.host}/ws`);
-  _commonWs.onmessage = e => {
-    const msg = JSON.parse(e.data);
-    // 闹铃弹窗 — 全局
+// WebSocket disabled in pure frontend mode
+function connectCommonWS() { /* noop */ }
     if (msg.type === "schedule_alarm") {
       showAlarmPopup(msg.data);
       return;
