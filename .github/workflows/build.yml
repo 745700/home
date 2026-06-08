@@ -17,25 +17,28 @@ jobs:
           java-version: 17
           distribution: temurin
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Set up Gradle
-        uses: gradle/setup-gradle@v4
+      - name: Install Android SDK
+        run: |
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O /tmp/cmdline-tools.zip
+          unzip -q /tmp/cmdline-tools.zip -d /opt/android-sdk
+          export ANDROID_HOME=/opt/android-sdk/cmdline-tools/latest
+          export PATH=$PATH:$ANDROID_HOME/bin
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" --channel=0 2>&1 | tail -3
 
       - name: Create local.properties
         run: |
-          echo "sdk.dir=$ANDROID_HOME" > AionApp/local.properties
-          echo "org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8" >> AionApp/gradle.properties
+          echo "sdk.dir=/opt/android-sdk" > AionApp/local.properties
+          echo "org.gradle.jvmargs=-Xmx2048m" >> AionApp/gradle.properties
 
       - name: Build debug APK
         run: |
           cd AionApp
-          ./gradlew assembleDebug \
-            --no-daemon \
-            --warning-mode=none 2>&1 | tail -30
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --warning-mode=none 2>&1 | tail -40
 
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: aion-app-debug
