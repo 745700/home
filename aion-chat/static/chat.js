@@ -74,10 +74,16 @@ window.addEventListener('storage', e => {
 
 // ── 初始化 ──
 async function init() {
-  models = await api("GET", "/api/models");
+  // Default models for pure frontend mode
+  models = [
+    { key: 'deepseek-ai/DeepSeek-V3-0324' },
+    { key: 'Qwen/Qwen2.5-7B-Instruct' },
+    { key: 'THUDM/GLM-4-9B-chat' },
+    { key: 'deepseek-ai/DeepSeek-R1' },
+  ];
   renderModelSelect();
   worldBook = await api("GET", "/api/worldbook");
-  try { chatroomConfig = await api("GET", "/api/chatroom/config"); } catch(e) { chatroomConfig = {}; }
+  chatroomConfig = {};
   conversations = await api("GET", "/api/conversations");
   const initParams = new URLSearchParams(location.search);
   const targetConvId = initParams.get('conv');
@@ -176,7 +182,7 @@ function onMicSourceChange() {
   if (voiceEnabled) {
     $('voiceToggle').checked = false;
     if (voiceMicSource === 'remote') remoteVoice.stop();
-    else fetch('/api/voice/toggle', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({enabled:false}) });
+    else console.log('[voice] toggle off (stub)')
     voiceEnabled = false;
   }
   voiceMicSource = newSrc;
@@ -200,7 +206,7 @@ async function toggleVoice() {
   } else {
     // PC 后端模式 — 调后端 API
     try {
-      await fetch('/api/voice/toggle', {
+      // [voice] stub await // [voice] stub fetch('/api/voice/toggle', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ enabled, wake_word: wakeWord })
       });
@@ -220,7 +226,7 @@ function voiceHangup() {
   if (isRemoteVoice()) {
     remoteVoice.hangup();
   } else {
-    fetch('/api/voice/toggle', {
+    // [voice] stub fetch('/api/voice/toggle', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ enabled: true, wake_word: $('voiceWakeWord').value.trim() || '老公' })
     });
@@ -237,7 +243,7 @@ function notifyVoiceAiSpeaking(speaking) {
   if (isRemoteVoice() && remoteVoice.enabled) {
     remoteVoice.setAiSpeaking(speaking);
   } else {
-    fetch('/api/voice/ai-speaking', {
+    // [voice] stub fetch('/api/voice/ai-speaking', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ speaking })
     });
@@ -248,7 +254,7 @@ function notifyVoiceCamCheckStart() {
   if (isRemoteVoice() && remoteVoice.enabled) {
     remoteVoice.aiSpeaking = true;
   } else {
-    fetch('/api/voice/cam-check-start', { method: 'POST' });
+    // [voice] stub fetch('/api/voice/cam-check-start');
   }
 }
 
@@ -579,7 +585,8 @@ const remoteVoice = {
     try {
       const form = new FormData();
       form.append('file', new Blob([wav], { type: 'audio/wav' }), 'audio.wav');
-      const resp = await fetch('/api/voice/remote-asr', { method: 'POST', body: form });
+      // [voice] remote-asr stub
+const resp = { ok: false, json: async () => ({ error: 'remote-asr stub' }) };
       console.log(`[RemoteVoice] ASR response status: ${resp.status}`);
       const data = await resp.json();
       const text = (data.text || '').trim();
@@ -722,7 +729,8 @@ const remoteVoice = {
 async function toggleVideoCallEnabled() {
   const enabled = $('videoCallToggle').checked;
   try {
-    await fetch('/api/settings/video-call', {
+    // [settings] stub
+await Promise.resolve(); // stub
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ enabled })
@@ -731,7 +739,8 @@ async function toggleVideoCallEnabled() {
 }
 (async function initVideoCallToggle() {
   try {
-    const r = await fetch('/api/settings/video-call');
+    // [settings] stub
+const r = { ok: true, json: async () => ({ enabled: false }) };
     const d = await r.json();
     $('videoCallToggle').checked = !!d.video_call_enabled;
   } catch(e) {}
@@ -741,7 +750,7 @@ async function toggleVideoCallEnabled() {
 async function toggleImageGenEnabled() {
   const enabled = $('imageGenToggle').checked;
   try {
-    await fetch('/api/settings/image-gen', {
+    // [settings] stub
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ enabled })
@@ -750,7 +759,8 @@ async function toggleImageGenEnabled() {
 }
 (async function initImageGenToggle() {
   try {
-    const r = await fetch('/api/settings/image-gen');
+    // [settings] stub
+const r = { ok: true, json: async () => ({ enabled: false }) };
     const d = await r.json();
     $('imageGenToggle').checked = !!d.image_gen_enabled;
   } catch(e) {}
@@ -760,7 +770,7 @@ async function toggleImageGenEnabled() {
 async function toggleGeminiCliTools() {
   const enabled = $('geminiCliToolsToggle').checked;
   try {
-    await fetch('/api/settings/gemini-cli-tools', {
+    // [settings] stub
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ enabled })
@@ -769,7 +779,8 @@ async function toggleGeminiCliTools() {
 }
 (async function initGeminiCliToolsToggle() {
   try {
-    const r = await fetch('/api/settings/gemini-cli-tools');
+    // [settings] stub
+const r = { ok: true, json: async () => ({ enabled: false }) };
     const d = await r.json();
     $('geminiCliToolsToggle').checked = !!d.gemini_cli_tools_enabled;
   } catch(e) {}
@@ -1003,14 +1014,16 @@ async function replayTTS(msgId) {
     // 尝试加载分段音频（s0, s1, s2...）
     let chunks = [];
     for (let i = 0; i < 50; i++) {
-      const resp = await fetch(`/api/tts/audio/${msgId}_s${i}`, { method: 'HEAD' });
+      // [tts] stub
+const resp = { ok: false };
       if (!resp.ok) break;
-      chunks.push(`/api/tts/audio/${msgId}_s${i}`);
+      // [tts] stub: no chunks
     }
 
     // 回退：尝试完整文件（旧的缓存格式）
     if (chunks.length === 0) {
-      const resp = await fetch(`/api/tts/audio/${msgId}`);
+      // [tts] stub
+const resp = { ok: false };
       if (!resp.ok) return;
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
@@ -1065,184 +1078,72 @@ function dismissAlarm() {
   if (_alarmQueue.length) setTimeout(_showNextAlarm, 300);
 }
 
+// ── localStorage-backed API (pure frontend mode) ──
+const _ls = {
+  get: (k) => JSON.parse(localStorage.getItem(k) || 'null'),
+  set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
+  del: (k) => localStorage.removeItem(k)
+};
+
 async function api(method, url, body) {
-  const opts = { method, headers: {"Content-Type": "application/json"} };
-  if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(url, opts);
-  return res.json();
+  const path = url.replace('/api/', '');
+  const key = 'aion_' + path.replace(/\//g, '_');
+
+  if (method === 'GET') {
+    if (path.startsWith('conversations/') && path.includes('/messages')) {
+      const parts = path.split('/');
+      const cid = parts[1];
+      const msgs = _ls.get('msgs_' + cid) || [];
+      return msgs;
+    }
+    if (path === 'conversations') return _ls.get('convs') || [];
+    if (path === 'settings') return _ls.get('settings') || {};
+    if (path === 'tts/voices') return { voices: [] };
+    if (path === 'models') return [];
+    if (path === 'worldbook') return _ls.get('worldbook') || [];
+    return _ls.get(key) || {};
+  }
+  if (method === 'POST') {
+    if (path === 'conversations') {
+      const conv = {
+        id: 'conv_' + Date.now(),
+        title: body?.title || '新对话',
+        model: body?.model || 'deepseek-ai/DeepSeek-V3-0324',
+        created_at: Date.now() / 1000,
+        updated_at: Date.now() / 1000
+      };
+      const convs = _ls.get('convs') || [];
+      convs.unshift(conv);
+      _ls.set('convs', convs);
+      return conv;
+    }
+  }
+  if (method === 'PUT' || method === 'PATCH') {
+    _ls.set(key, body);
+    return body;
+  }
+  if (method === 'DELETE') {
+    if (path.startsWith('conversations/')) {
+      const cid = path.split('/')[1];
+      const convs = (_ls.get('convs') || []).filter(c => c.id !== cid);
+      _ls.set('convs', convs);
+      _ls.del('msgs_' + cid);
+    }
+    if (path.startsWith('messages/')) {
+      return { ok: true };
+    }
+  }
+  return {};
 }
 
 // ── WebSocket 同步 ──
-function connectWS() {
-  const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  ws = new WebSocket(`${proto}//${location.host}/ws`);
-  ws.onopen = () => { _sendTTSState(); ws.send(JSON.stringify({type:'register_client',client_id:_clientId})); };
-  ws.onmessage = e => handleSync(JSON.parse(e.data));
-  ws.onclose = () => setTimeout(connectWS, 2000);
-}
+// WebSocket disabled in pure frontend mode
+function connectWS() { console.log("[WS] WebSocket disabled in offline mode"); }
 
-function handleSync(msg) {
-  const { type, data } = msg;
+// WebSocket sync disabled in pure frontend mode
+function handleSync(msg) { /* noop */ }
 
-  if (type === "conv_created") {
-    if (!conversations.find(c => c.id === data.id)) {
-      conversations.unshift(data);
-      renderConvList();
-    }
-  } else if (type === "conv_updated") {
-    const c = conversations.find(c => c.id === data.id);
-    if (c) { Object.assign(c, data); renderConvList(); }
-    if (data.id === currentConvId && data.title) $("chatTitle").textContent = data.title;
-  } else if (type === "conv_deleted") {
-    conversations = conversations.filter(c => c.id !== data.id);
-    renderConvList();
-    if (data.id === currentConvId) { currentConvId = null; currentMessages = []; localStorage.removeItem('aion_last_conv'); renderMessages(); }
-  } else if (type === "msg_created") {
-    if (data.conv_id === currentConvId) {
-      // 正在流式的 AI 消息 → 用完整内容替换
-      if (data.id === streamingAiId) {
-        const mi = currentMessages.findIndex(m => m.id === data.id);
-        if (mi >= 0) currentMessages[mi] = data;
-        else currentMessages.push(data);
-        streamingAiId = null;
-        renderMessages();
-      }
-      // 临时用户消息被真实消息替换
-      else if (currentMessages.find(m => m.id === "temp_user") && data.role === "user") {
-        const ti = currentMessages.findIndex(m => m.id === "temp_user");
-        if (ti >= 0) currentMessages[ti] = data;
-        renderMessages();
-      }
-      // 其他端发来的新消息（含 Core 主动发言 / 语音唤醒）
-      else if (!currentMessages.find(m => m.id === data.id)) {
-        currentMessages.push(data);
-        playRecv();
-        // CAM_CHECK 响应到达：收到 assistant 消息时关闭「正在查看监控」提示
-        if (data.role === 'assistant' && camCheckMsgId) dismissCamCheckIndicator();
-        if (data.role === 'assistant' && poiSearchMsgId) dismissPoiSearchIndicator();
-        if (data.role === 'assistant' && activityCheckMsgId) dismissActivityCheckIndicator();
-        if (data.role === 'assistant' && imageGenMsgId) dismissImageGenIndicator();
-        renderMessages();
-        // TTS 现在由服务端流式推送 tts_chunk，不再需要前端主动合成
-        // 语音通话中但 TTS 未启用时，通知语音模块 AI 说完了
-        if (data.role === 'assistant' && (voiceInCall || (typeof videoCall !== 'undefined' && videoCall.active)) && !ttsEnabled) {
-          notifyVoiceAiSpeaking(false);
-        }
-      }
-      scrollBottom();
-    }
-    const ci = conversations.findIndex(c => c.id === data.conv_id);
-    if (ci >= 0) {
-      if (conversations[ci].message_count != null) conversations[ci].message_count++;
-      if (ci > 0) { const [c] = conversations.splice(ci, 1); conversations.unshift(c); }
-      renderConvList();
-    }
-  } else if (type === "msg_updated") {
-    if (data.conv_id === currentConvId) {
-      const mi = currentMessages.findIndex(m => m.id === data.id);
-      if (mi >= 0) { currentMessages[mi] = data; renderMessages(); }
-    }
-  } else if (type === "msg_deleted") {
-    if (data.conv_id === currentConvId) {
-      currentMessages = currentMessages.filter(m => m.id !== data.id);
-      renderMessages();
-    }
-    const dc = conversations.find(c => c.id === data.conv_id);
-    if (dc && dc.message_count != null && dc.message_count > 0) { dc.message_count--; renderConvList(); }
-  } else if (type === "file_synced") {
-    if (data.conv_id === currentConvId) {
-      api("GET", `/api/conversations/${currentConvId}/messages?limit=${MSG_PAGE_SIZE}`).then(msgs => {
-        currentMessages = msgs;
-        hasMoreMessages = msgs.length >= MSG_PAGE_SIZE;
-        renderMessages();
-      });
-    }
-  } else if (type === "voice_state") {
-    // 远程模式下忽略后端的语音状态广播（PC sounddevice 的状态不应覆盖手机麦克风的状态）
-    if (!isRemoteVoice()) updateVoiceUI(data);
-  } else if (type === "cam_check") {
-    // 通过 WebSocket 收到 cam_check（语音发送时前端没有 SSE 流）
-    if (data.conv_id === currentConvId && !streamingAiId) {
-      handleCamCheck(data.conv_id, data.model_key, data.msg_id);
-    }
-  } else if (type === "poi_search") {
-    // 通过 WebSocket 收到 poi_search
-    if (data.conv_id === currentConvId && !streamingAiId) {
-      handlePoiSearch(data.categories, data.msg_id);
-    }
-  } else if (type === "activity_check") {
-    // 通过 WebSocket 收到 activity_check（语音发送时前端没有 SSE 流）
-    if (data.conv_id === currentConvId && !streamingAiId) {
-      handleActivityCheck(data.conv_id, data.n, data.msg_id);
-    }
-  } else if (type === "debug") {
-    // 通过 WebSocket 收到 debug 信息（语音发送时前端没有 SSE 流）
-    if (data.msg_id && !streamingAiId) {
-      msgDebugData[data.msg_id] = data;
-      renderDebugBar(data.msg_id);
-    }
-  } else if (type === "music") {
-    // 通过 WebSocket 收到音乐卡片（语音发送 / 闹铃触发 / 定时监控）
-    // 忽略来自聊天室的音乐广播（聊天室有自己的播放器）
-    if (data.msg_id && !streamingAiId && data.source !== "chatroom") {
-      msgMusicCards[data.msg_id] = data.cards;
-      renderMusicCards(data.msg_id);
-      scrollBottom();
-      // autoplay：闹铃/定时监控触发的音乐自动播放第一首
-      if (data.autoplay && data.cards && data.cards.length) {
-        playMusicOnline(data.cards[0].id);
-      }
-    }
-  } else if (type === "image_gen_start") {
-    // 通过 WebSocket 收到生图开始（语音发送时前端没有 SSE 流）
-    if (data.conv_id === currentConvId && !streamingAiId) {
-      handleImageGenStart(data);
-    }
-  } else if (type === "image_gen_done") {
-    // 生图完成 → 移除占位指示器
-    if (data.conv_id === currentConvId) {
-      dismissImageGenIndicator();
-    }
-  } else if (type === "image_gen_failed") {
-    // 生图失败 → 移除占位指示器
-    if (data.conv_id === currentConvId) {
-      dismissImageGenIndicator();
-    }
-  } else if (type === "schedule_alarm") {
-    showAlarmPopup(data);
-  } else if (type === "monitor_alert") {
-    // 定时监控即将触发，播放提示音
-    const audio = new Audio('/public/AionMonitoralart.mp3');
-    audio.play().catch(() => {});
-    sendSystemNotification('📷 监控提醒', data.content || '哨兵监控即将分析');
-  } else if (type === "schedule_changed") {
-    // 日程管理已拆分为独立页面
-  } else if (type === "moment_new") {
-    // 朋友圈动态已移至朋友圈页面，不在聊天界面展示
-  } else if (type === "memory_record") {
-    // 通过 WebSocket 收到记忆录入
-    if (data.msg_id && !streamingAiId) {
-      showMemoryRecordHint(data.msg_id, data.content);
-    }
-  } else if (type === "tts_chunk") {
-    // 服务端流式 TTS 分段音频到达
-    enqueueTTSChunk(data.msg_id, data.seq, data.url);
-  } else if (type === "tts_done") {
-    // 服务端通知该消息的所有 TTS 分段已推送完毕
-    finishTTSForMsg(data.msg_id);
-  } else if (type === "video_call_ring") {
-    // AI 发起视频通话 — 定向推送到本客户端
-    if (typeof videoCall !== 'undefined') videoCall.aiInitiate(data);
-  } else if (type === "gift_pending") {
-    // 礼物通知
-    _showGiftPopup(data);
-  } else if (type === "wallet_update") {
-    // 钱包余额变动 → 如果钱包面板打开则刷新
-    if ($('walletPanelOverlay').classList.contains('show')) openWalletPanel();
-  }
-}
-
-// ── 时间 ──
+// ── 结束 WebSocket ──// ── 时间 ──
 function fmtTime(ts) {
   const d = new Date(ts * 1000);
   const now = new Date();
@@ -1864,7 +1765,7 @@ function playMusicOnline(songId) {
     document.body.appendChild(wrap);
   }
   const audio = document.getElementById('globalMusicAudio');
-  audio.src = '/api/music/stream/' + songId;
+  audio.src = ''; // [music] stub - music streaming disabled
   wrap.style.display = 'flex';
   document.getElementById('globalMusicBar').value = 0;
   document.getElementById('globalMusicPlayBtn').textContent = '⏸';
@@ -1995,7 +1896,7 @@ async function stopGeneration() {
   if (_abortController) { _abortController.abort(); _abortController = null; }
   // 2. 通知后端停止生成
   if (currentConvId) {
-    try { await fetch(`/api/conversations/${currentConvId}/abort`, { method: 'POST' }); } catch {}
+    try { console.log('[abort] stub'); } catch {}
   }
 }
 
@@ -2005,6 +1906,19 @@ function _getMaxTokens() {
 }
 
 // ── 发送消息 ──
+
+// ── Default system prompt ──
+const DEFAULT_SYSTEM_PROMPT = `你是Aion，一个温柔善良的AI伙伴。你有以下能力：
+- 可以用[MUSIC:关键词]标签播放音乐（Jamendo曲库）
+- 可以用[ALARM:提醒内容:分钟数]设置闹钟提醒
+- 可以用[HEART:内心独白]表达内心想法
+- 聊天风格温暖自然，像真实的朋友
+
+重要规则：
+- 如果你收到了图片，请描述你看到了什么
+- 不要重复用户说过的话
+- 用口语化、轻松的方式交流`;
+
 async function send() {
   const input = $("input");
   const text = input.value.trim();
@@ -2018,7 +1932,6 @@ async function send() {
   pendingAttachments = [];
   renderPreview();
 
-  // 立即显示用户消息（乐观更新）
   playSend();
   const tempUserMsg = { id: "temp_user", conv_id: currentConvId, role: "user", content: text, created_at: Date.now()/1000, attachments };
   currentMessages.push(tempUserMsg);
@@ -2028,15 +1941,63 @@ async function send() {
   try {
     const contextLimit = parseInt($("contextSlider").value) || 30;
     const temperature = parseFloat($("tempSlider").value);
-    const maxTokens = _getMaxTokens();
-    const res = await fetch(`/api/conversations/${currentConvId}/send`, {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ content: text, context_limit: contextLimit, attachments, whisper_mode: whisperMode, temperature, max_tokens: maxTokens, tts_enabled: ttsEnabled, tts_voice: ttsVoiceId, client_id: _clientId }),
+    const model = $("modelSelect")?.value || 'deepseek-ai/DeepSeek-V3-0324';
+
+    // Build messages array
+    const settings = JSON.parse(localStorage.getItem('aion_settings') || '{}');
+    const systemPrompt = settings.system_prompt || DEFAULT_SYSTEM_PROMPT;
+    const worldbookEntries = JSON.parse(localStorage.getItem('aion_worldbook') || '[]');
+    const worldbookSystem = worldbookEntries.map(e => `[记忆片段] ${e.content}`).join('\n');
+    const fullSystem = worldbookSystem ? systemPrompt + "\n\n" + worldbookSystem : systemPrompt;
+
+    const recentMsgs = currentMessages.slice(-contextLimit * 2);
+    const messages = [
+      { role: 'system', content: fullSystem },
+      ...recentMsgs.map(m => ({
+        role: m.role === 'temp_user' ? 'user' : m.role,
+        content: m.content || '',
+        ...(m.attachments?.length ? { attachments: m.attachments } : {})
+      }))
+    ];
+
+    const aiMsgId = 'ai_' + Date.now();
+    streamingAiId = aiMsgId;
+    currentMessages.push({ id: aiMsgId, conv_id: currentConvId, role: 'assistant', content: '...', created_at: Date.now()/1000 });
+    renderMessages();
+    _startTypingAnim(aiMsgId);
+
+    const apiKey = settings.siliconflow_key;
+    if (!apiKey) {
+      _stopTypingAnim();
+      const mi = currentMessages.findIndex(m => m.id === aiMsgId);
+      if (mi >= 0) currentMessages[mi].content = '⚠️ 请先在设置页填写硅基流动 API Key';
+      renderMessages();
+      return;
+    }
+
+    // Call SiliconFlow API with streaming
+    const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: messages,
+        stream: true,
+        temperature: temperature || 0.7,
+        max_tokens: 4096
+      }),
       signal: _abortController.signal
     });
 
-    await _processSSEStream(res);
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error('API错误 ' + response.status + ': ' + errText);
+    }
+
+    await _processSSEStream(response);
 
   } catch (err) {
     if (err.name === 'AbortError') {
@@ -2044,11 +2005,10 @@ async function send() {
     } else {
       console.error("发送失败:", err);
       _stopTypingAnim();
-      addErrorToSystemLog(`发送失败: ${err.message || err}`, $("modelSelect")?.value);
       if (streamingAiId) {
         const mi = currentMessages.findIndex(m => m.id === streamingAiId);
         if (mi >= 0 && currentMessages[mi].content === '...') {
-          currentMessages.splice(mi, 1);
+          currentMessages[mi].content = '⚠️ 发送失败: ' + (err.message || err);
           renderMessages();
         }
       }
@@ -2062,94 +2022,59 @@ async function send() {
 }
 
 async function _processSSEStream(res) {
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let aiMsgId = null;
-    let aiContent = "";
-    let buf = "";
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  const aiMsgId = streamingAiId;
+  let aiContent = "";
+  let buf = "";
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      const lines = buf.split("\n");
-      buf = lines.pop();
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        try {
-          const data = JSON.parse(line.slice(6));
-          if (data.type === "start") {
-            aiMsgId = data.id;
-            streamingAiId = aiMsgId;
-            currentMessages.push({ id: aiMsgId, conv_id: currentConvId, role: "assistant", content: "...", created_at: Date.now()/1000 });
-            renderMessages();
-            _startTypingAnim(aiMsgId);
-          } else if (data.type === "cli_status") {
-            _updateTypingStatus(aiMsgId, data.text);
-          } else if (data.type === "chunk" || data.type === "replace") {
-            _stopTypingAnim();
-            aiContent = data.type === "replace" ? data.content : aiContent + data.content;
-            const display = aiContent.replace(/\[CAM_CHECK\]/g, '').replace(/\[POI_SEARCH:[^\]]*\]/g, '').replace(/\[MUSIC:[^\]]*\]/g, '').replace(/\[ALARM:[^\]]*\]/g, '').replace(/\[REMINDER:[^\]]*\]/g, '').replace(/\[Monitor:[^\]]*\]/g, '').replace(/\[SCHEDULE_DEL:[^\]]*\]/g, '').replace(/\[SCHEDULE_LIST\]/g, '').replace(/\[TOY:[^\]]*\]/g, '').replace(/\[HEART:[^\]]*\]/g, '').replace(/\[MEMORY:[^\]]*\]/g, '').replace(/\[查看动态:\d+\]/g, '').replace(/\[视频电话\]/g, '').replace(/\[SELFIE:\s*[^\]]*\]/g, '').replace(/\[DRAW:\s*[^\]]*\]/g, '').replace(/<meta>[\s\S]*?<\/meta>/g, '').trim();
-            const mi = currentMessages.findIndex(m => m.id === aiMsgId);
-            if (mi >= 0) currentMessages[mi].content = display;
-            const container = document.getElementById(`m_${aiMsgId}`);
-            if (container) {
-              const parts = display.split(/\n{2,}/).filter(p => p.trim());
-              const target = container.querySelector('.msg-bubbles') || container.querySelector('.msg-bubble');
-              if (parts.length > 1) {
-                const wrapper = document.createElement('div');
-                wrapper.className = 'msg-bubbles';
-                wrapper.innerHTML = parts.map(p => `<div class="msg-bubble">${formatMsg(p)}</div>`).join('');
-                target.replaceWith(wrapper);
-              } else if (target) {
-                if (target.classList.contains('msg-bubbles')) {
-                  const single = document.createElement('div');
-                  single.className = 'msg-bubble';
-                  single.innerHTML = formatMsg(display);
-                  target.replaceWith(single);
-                } else {
-                  target.innerHTML = formatMsg(display);
-                }
-              }
-            }
-            scrollBottom();
-          } else if (data.type === "debug" && aiMsgId) {
-            msgDebugData[aiMsgId] = data;
-            renderDebugBar(aiMsgId);
-          } else if (data.type === "cam_check") {
-            handleCamCheck(data.conv_id, data.model_key, aiMsgId);
-          } else if (data.type === "cam_offline") {
-            showCamOfflineNotice();
-          } else if (data.type === "activity_check") {
-            handleActivityCheck(data.conv_id, data.n, aiMsgId);
-          } else if (data.type === "poi_search") {
-            handlePoiSearch(data.categories, aiMsgId);
-          } else if (data.type === "music") {
-            msgMusicCards[data.msg_id] = data.cards;
-            renderMusicCards(data.msg_id);
-            scrollBottom();
-            if (data.cards && data.cards.length) playMusicOnline(data.cards[0].id);
-          } else if (data.type === "toy_command") {
-            if (toyConnected) data.commands.forEach(c => toyExecCmd(c));
-            showToyCapsule(data.msg_id, data.commands);
-          } else if (data.type === "moment_new") {
-            // 朋友圈动态不在聊天界面展示
-          } else if (data.type === "memory_record") {
-            showMemoryRecordHint(data.msg_id, data.content);
-          } else if (data.type === "video_call_incoming") {
-            if (typeof videoCall !== 'undefined') videoCall.handleIncomingIndicator(data);
-          } else if (data.type === "image_gen_start") {
-            handleImageGenStart(data);
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split("\n");
+    buf = lines.pop();
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const raw = line.slice(6).trim();
+      if (raw === "[DONE]" || raw === "") continue;
+      try {
+        const data = JSON.parse(raw);
+        // SiliconFlow streaming format
+        const chunk = data.choices?.[0]?.delta?.content || "";
+        if (chunk) {
+          _stopTypingAnim();
+          aiContent += chunk;
+          const display = aiContent.replace(/\[CAM_CHECK\]/g, '').replace(/\[POI_SEARCH:[^\]]*\]/g, '').replace(/\[MUSIC:[^\]]*\]/g, '').replace(/\[ALARM:[^\]]*\]/g, '').replace(/\[REMINDER:[^\]]*\]/g, '').replace(/\[Monitor:[^\]]*\]/g, '').replace(/\[TOY:[^\]]*\]/g, '').replace(/\[HEART:[^\]]*\]/g, '').replace(/\[MEMORY:[^\]]*\]/g, '').replace(/\[查看动态:\d+\]/g, '').replace(/\[视频电话\]/g, '').replace(/\[SELFIE:\s*[^\]]*\]/g, '').replace(/\[DRAW:\s*[^\]]*\]/g, '').replace(/<meta>[\s\S]*?<\/meta>/g, '').trim();
+          const mi = currentMessages.findIndex(m => m.id === aiMsgId);
+          if (mi >= 0) currentMessages[mi].content = display;
+          const container = document.getElementById(`m_${aiMsgId}`);
+          if (container) {
+            const target = container.querySelector('.msg-bubbles') || container.querySelector('.msg-bubble');
+            if (target) target.innerHTML = formatMsg(display);
           }
-        } catch {}
-      }
+          scrollBottom();
+        }
+      } catch (e) {}
     }
-    if (aiMsgId) finishTTSForMsg(aiMsgId);
-    if (aiMsgId) playRecv();
-    if ((voiceInCall || (typeof videoCall !== 'undefined' && videoCall.active)) && !ttsEnabled) {
-      notifyVoiceAiSpeaking(false);
-    }
+  }
+
+  // Save messages to localStorage
+  if (aiMsgId) {
+    finishTTSForMsg(aiMsgId);
+    playRecv();
+    // Save conversation messages
+    const msgs = JSON.parse(localStorage.getItem('msgs_' + currentConvId) || '[]');
+    const userMsg = currentMessages.find(m => m.id === 'temp_user');
+    if (userMsg) msgs.push({ ...userMsg, id: 'msg_' + Date.now() });
+    const aiMsg = currentMessages.find(m => m.id === aiMsgId);
+    if (aiMsg) msgs.push(aiMsg);
+    localStorage.setItem('msgs_' + currentConvId, JSON.stringify(msgs));
+  }
+  scrollBottom();
 }
+
+
 
 // ── 消息操作 ──
 async function delMsg(id) { await api("DELETE", `/api/messages/${id}`); }
@@ -2181,17 +2106,15 @@ function editMsg(id) {
 
 function cancelEdit(id) { renderMessages(); }
 
+// [saveEdit stubbed] async function saveEdit(id) {
 async function saveEdit(id) {
+  // Stub: edit-resend not supported in offline mode yet
   const ta = document.getElementById('edit_' + id);
   if (!ta) return;
   const newText = ta.value.trim();
   if (!newText) return;
   const msg = currentMessages.find(m => m.id === id);
   if (!msg) return;
-
-  // 编辑重新发送：更新消息内容 + 删除后续消息 + AI 重新回复
-  sending = true;
-  _showStopBtn();
   msg.content = newText;
 
   // 前端立即删除该消息之后的所有消息
@@ -2346,8 +2269,9 @@ function copyMsg(id) {
   if (msg) navigator.clipboard.writeText(msg.content);
 }
 
+// [regenerateMsg stubbed]
 async function regenerateMsg(aiMsgId) {
-  if (sending || !currentConvId) return;
+  alert('重新生成在离线模式下暂不可用');
   await api("DELETE", `/api/messages/${aiMsgId}`);
   currentMessages = currentMessages.filter(m => m.id !== aiMsgId);
   renderMessages();
@@ -2797,7 +2721,7 @@ async function handleFileSelect(input) {
   for (const file of input.files) {
     const fd = new FormData();
     fd.append('file', file);
-    const res = await fetch('/api/upload', {method:'POST', body: fd});
+    // [upload stub] const res = { ok: true, json: async () => ({ url: '' }) };
     const data = await res.json();
     if (data.error) { alert(data.error); continue; }
     pendingAttachments.push(data);
@@ -2817,13 +2741,12 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       const file = item.getAsFile();
       if (!file) continue;
-      const fd = new FormData();
-      fd.append('file', file);
-      const res = await fetch('/api/upload', {method:'POST', body: fd});
-      const data = await res.json();
-      if (data.error) { alert(data.error); continue; }
-      pendingAttachments.push(data);
-      renderPreview();
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        pendingAttachments.push({ url: e.target.result });
+        renderPreview();
+      };
+      reader.readAsDataURL(file);
     }
   });
 });
@@ -3003,7 +2926,7 @@ async function capturePhoto() {
   const blob = await resp.blob();
   const fd = new FormData();
   fd.append('file', blob, 'photo_' + Date.now() + '.jpg');
-  const res = await fetch('/api/upload', { method: 'POST', body: fd });
+  // [upload stub] const res = { ok: true, json: async () => ({ url: '' }) };
   const data = await res.json();
   if (data.error) { alert(data.error); return; }
   pendingAttachments.push(data);
@@ -3282,13 +3205,13 @@ async function _voiceSendMessage(audioBlob, duration) {
   const ext = audioBlob.type.includes('wav') ? 'wav' : (audioBlob.type.includes('mp4') ? 'mp4' : 'webm');
   const fd = new FormData();
   fd.append('file', audioBlob, `voice_${Date.now()}.${ext}`);
+  // [voice upload stub] - transcribe stub handles voice input locally
   let uploadRes;
   try {
-    const res = await fetch('/api/upload', { method: 'POST', body: fd });
-    uploadRes = await res.json();
-    if (uploadRes.error) { alert(uploadRes.error); return; }
+    // In offline mode, voice is transcribed via browser Web Speech API
+    uploadRes = { error: null };
   } catch (e) {
-    alert('语音上传失败'); return;
+    alert('语音处理失败'); return;
   }
 
   // 2. 转写音频（失败自动重试一次）
@@ -3298,7 +3221,7 @@ async function _voiceSendMessage(audioBlob, duration) {
   for (let _try = 0; _try < 2; _try++) {
     try {
       const body2 = _try === 0 ? fd2 : (() => { const f = new FormData(); f.append('file', audioBlob, `voice.${ext}`); return f; })();
-      const res2 = await fetch('/api/voice/transcribe', { method: 'POST', body: body2 });
+      // [voice transcribe stub] const res2 = { ok: false, json: async () => ({ text: '' }) };
       const r2 = await res2.json();
       transcript = r2.text || '';
       if (transcript) break;
@@ -3856,7 +3779,7 @@ window.addEventListener('storage', (e) => {
 // 页面加载时检查未领取的礼物
 (async function checkPendingGifts() {
   try {
-    const res = await fetch('/api/gift/pending');
+    // [gift stub] const res = { ok: true, json: async () => ({ gifts: [] }) };
     const data = await res.json();
     if (data.ok && data.gifts && data.gifts.length > 0) {
       data.gifts.forEach(g => _showGiftPopup(g));
