@@ -20,11 +20,13 @@ jobs:
       - name: Install Android SDK
         run: |
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O /tmp/cmdline-tools.zip
-          unzip -q /tmp/cmdline-tools.zip -d /opt/android-sdk
-          export ANDROID_HOME=/opt/android-sdk/cmdline-tools/latest
-          export PATH=$PATH:$ANDROID_HOME/bin
+          unzip -q /tmp/cmdline-tools.zip -d /tmp/android-cmdline
+          mkdir -p /opt/android-sdk/cmdline-tools
+          mv /tmp/android-cmdline/cmdline-tools /opt/android-sdk/cmdline-tools/latest
+          export ANDROID_HOME=/opt/android-sdk
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
           yes | sdkmanager --licenses > /dev/null 2>&1 || true
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" --channel=0 2>&1 | tail -3
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" --channel=0 2>&1 | tail -5
 
       - name: Create local.properties
         run: |
