@@ -419,7 +419,8 @@ public class WebViewActivity extends AppCompatActivity {
         // 加载目标 URL
         targetUrl = getIntent().getStringExtra("url");
         if (targetUrl == null || targetUrl.isEmpty()) {
-            targetUrl = "http://192.168.xx.xxx:8080/chat";
+            // 离线模式：加载 APK assets 中的本地页面
+            targetUrl = "file:///android_asset/static/home.html";
         }
         webView.loadUrl(targetUrl);
     }
