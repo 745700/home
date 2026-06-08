@@ -64,23 +64,17 @@
         android:usesCleartextTraffic="true"
         android:networkSecurityConfig="@xml/network_security_config">
 
-        <!-- 地址选择页 -->
+        <!-- WebView 聊天页（直接启动） -->
         <activity
-            android:name=".LauncherActivity"
+            android:name=".WebViewActivity"
             android:exported="true"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
             android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!-- WebView 聊天页 -->
-        <activity
-            android:name=".WebViewActivity"
-            android:exported="false"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden"
-            android:screenOrientation="portrait" />
 
         <!-- 后台推送服务（前台服务 + WebSocket 长连接） -->
         <service
