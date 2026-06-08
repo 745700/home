@@ -1,4 +1,4 @@
-﻿package com.aion.chat;
+package com.aion.chat;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
