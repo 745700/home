@@ -25,7 +25,7 @@ jobs:
           mv /tmp/android-cmdline/cmdline-tools /opt/android-sdk/cmdline-tools/latest
           export ANDROID_HOME=/opt/android-sdk
           export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
-          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          yes 2>/dev/null | sdkmanager --licenses || true
           sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" --channel=0 2>&1 | tail -5
 
       - name: Create local.properties
@@ -37,12 +37,15 @@ jobs:
         run: |
           cd AionApp
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --warning-mode=none 2>&1 | tail -40
+          ./gradlew assembleDebug --no-daemon --warning-mode=none 2>&1
+          echo "=== APK FILES ==="
+          find . -name "*.apk" 2>/dev/null
+          ls -la app/build/outputs/apk/debug/ 2>/dev/null || echo "No APK dir"
 
       - name: Upload APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: aion-app-debug
-          path: AionApp/app/build/outputs/apk/debug/*.apk
+          path: AionApp/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 7
