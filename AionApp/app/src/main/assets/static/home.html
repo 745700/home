@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Aion Home</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="public/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#ff8359">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  background: #2a1f14;
+}
+body[data-theme="dark"] { background: #06091f; }
+
+/* ── 全屏容器 ── */
+.phone-screen {
+  width: 100%;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: url('/public/BackGround.png') center/cover no-repeat;
+}
+body[data-theme="dark"] .phone-screen {
+  background-image: url('/public/BackGroundN.png');
+}
+body[data-theme="dark"] .phone-screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(3,7,29,0.18), rgba(5,8,27,0.32));
+}
+
+/* ── 时钟小组件 ── */
+.clock-widget {
+  flex-shrink: 0;
+  padding: 40px 24px 0;
+  color: #3a2e22;
+  text-shadow: 0 1px 4px rgba(255,255,255,0.4);
+  cursor: pointer;
+  position: relative;
+  z-index: 1;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+body[data-theme="dark"] .clock-widget {
+  color: #f5f7ff;
+  text-shadow: 0 2px 12px rgba(34,45,120,0.7);
+}
+.clock-widget .clock-time {
+  font-size: 64px;
+  font-weight: 200;
+  letter-spacing: -2px;
+  line-height: 1;
+}
+.clock-widget .clock-date {
+  font-size: 17px;
+  font-weight: 500;
+  margin-top: 4px;
+  opacity: 0.8;
+}
+
+/* ── 应用图标区 ── */
+.app-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px 0;
+  padding: 16px 16px 12px;
+  align-content: end;
+  overflow-y: auto;
+  position: relative;
+  z-index: 1;
+}
+.app-grid::-webkit-scrollbar { display: none; }
+
+.app-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  text-decoration: none;
+}
+.app-icon:active .icon-img {
+  transform: scale(0.9);
+}
+.app-icon .icon-img {
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
+  overflow: hidden;
+  transition: transform 0.15s;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.app-icon .icon-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.app-icon .icon-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #3a2e22;
+  text-shadow: 0 1px 3px rgba(255,255,255,0.5);
+  text-align: center;
+  line-height: 1.2;
+  margin-top: 4px;
+  max-width: 70px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+body[data-theme="dark"] .app-icon .icon-label {
+  color: #f4f6ff;
+  text-shadow: 0 2px 9px rgba(0,0,0,0.65);
+}
+.app-icon.disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.app-icon.disabled:active .icon-img {
+  transform: none;
+}
+
+/* ── 底部 Dock 栏 ── */
+.dock {
+  flex-shrink: 0;
+  padding: 14px 24px;
+  margin-bottom: 28px;
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  position: relative;
+  z-index: 1;
+}
+.dock::before {
+  content: '';
+  position: absolute;
+  left: 12px; right: 12px;
+  top: 0; bottom: 0;
+  background: rgba(255,255,255,0.35);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border-radius: 24px;
+  z-index: 0;
+  border: 1px solid rgba(255,255,255,0.45);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+}
+body[data-theme="dark"] .dock::before {
+  background: rgba(9,14,45,0.46);
+  border-color: rgba(157,166,255,0.30);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.20), inset 0 1px 0 rgba(255,255,255,0.10);
+}
+.dock .app-icon {
+  position: relative;
+  z-index: 1;
+}
+.dock .app-icon .icon-label { display: none; }
+
+/* ── 红点徽章 ── */
+.badge-dot {
+  position: absolute;
+  top: 2px; right: 2px;
+  width: 10px; height: 10px;
+  background: #ff4757;
+  border-radius: 50%;
+  border: 2px solid var(--bg);
+  z-index: 5;
+  display: none;
+}
+.badge-dot.show { display: block; }
+
+/* ── Toast 提示 ── */
+.global-search-trigger {
+  position: relative;
+  z-index: 1;
+  align-self: flex-start;
+  margin: 14px 24px 0;
+  border: 1px solid rgba(255,255,255,0.42);
+  border-radius: 18px;
+  background: rgba(255,255,255,0.34);
+  color: #3a2e22;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+  backdrop-filter: blur(18px) saturate(1.35);
+  -webkit-backdrop-filter: blur(18px) saturate(1.35);
+  cursor: pointer;
+}
+body[data-theme="dark"] .global-search-trigger {
+  border-color: rgba(157,166,255,0.26);
+  background: rgba(9,14,45,0.42);
+  color: #f4f6ff;
+  box-shadow: 0 10px 28px rgba(0,0,0,0.18);
+}
+.global-search-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: none;
+  padding: max(34px, env(safe-area-inset-top)) 14px max(22px, env(safe-area-inset-bottom));
+  background: rgba(30,22,14,0.34);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+.global-search-overlay.show { display: flex; }
+.global-search-panel {
+  width: min(680px, 100%);
+  max-height: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(255,255,255,0.46);
+  border-radius: 18px;
+  background: rgba(255,249,244,0.94);
+  box-shadow: 0 18px 48px rgba(0,0,0,0.22);
+  overflow: hidden;
+}
+body[data-theme="dark"] .global-search-panel {
+  border-color: rgba(157,166,255,0.24);
+  background: rgba(9,14,45,0.94);
+}
+.global-search-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid rgba(120,95,70,0.18);
+}
+body[data-theme="dark"] .global-search-head { border-bottom-color: rgba(157,166,255,0.16); }
+.global-search-head input {
+  min-width: 0;
+  flex: 1;
+  border: 1px solid rgba(120,95,70,0.22);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.72);
+  color: #2f261d;
+  padding: 10px 12px;
+  font-size: 14px;
+  outline: none;
+}
+body[data-theme="dark"] .global-search-head input {
+  border-color: rgba(157,166,255,0.22);
+  background: rgba(255,255,255,0.08);
+  color: #f4f6ff;
+}
+.global-search-head button {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #ff8359;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.global-search-head .global-search-close {
+  width: 36px;
+  padding: 10px 0;
+  background: rgba(0,0,0,0.08);
+  color: #49392b;
+  font-size: 18px;
+}
+body[data-theme="dark"] .global-search-head .global-search-close {
+  background: rgba(255,255,255,0.10);
+  color: #f4f6ff;
+}
+.global-search-meta {
+  padding: 9px 14px 0;
+  color: rgba(58,46,34,0.68);
+  font-size: 12px;
+}
+body[data-theme="dark"] .global-search-meta { color: rgba(244,246,255,0.66); }
+.global-search-results {
+  overflow-y: auto;
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.global-search-item {
+  border: 1px solid rgba(120,95,70,0.16);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.58);
+  padding: 10px 12px;
+  color: #2f261d;
+  cursor: pointer;
+  text-align: left;
+}
+body[data-theme="dark"] .global-search-item {
+  border-color: rgba(157,166,255,0.16);
+  background: rgba(255,255,255,0.07);
+  color: #f4f6ff;
+}
+.global-search-item:active { transform: scale(0.99); }
+.gsi-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 5px;
+}
+.gsi-badge {
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: rgba(255,131,89,0.16);
+  color: #9a4328;
+  font-size: 11px;
+  font-weight: 700;
+}
+body[data-theme="dark"] .gsi-badge {
+  background: rgba(255,131,89,0.20);
+  color: #ffb79e;
+}
+.gsi-time {
+  color: rgba(58,46,34,0.56);
+  font-size: 11px;
+}
+body[data-theme="dark"] .gsi-time { color: rgba(244,246,255,0.56); }
+.gsi-title {
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: rgba(58,46,34,0.70);
+}
+body[data-theme="dark"] .gsi-title { color: rgba(244,246,255,0.70); }
+.gsi-snippet {
+  font-size: 13px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+.gsi-snippet mark {
+  border-radius: 3px;
+  background: #ffe08a;
+  color: #513b00;
+  padding: 0 2px;
+}
+
+.toast {
+  position: absolute;
+  bottom: 110px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(10px);
+  color: #333;
+  padding: 10px 20px;
+  border-radius: 12px;
+  font-size: 13px;
+  opacity: 0;
+  transition: all 0.3s;
+  pointer-events: none;
+  z-index: 10;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ── 页面切换动画 ── */
+.phone-screen.navigating {
+  animation: fadeOut 0.2s ease-out forwards;
+}
+@keyframes fadeOut {
+  to { opacity: 0; transform: scale(0.97); }
+}
+</style>
+</head>
+<body>
+
+  <div class="phone-screen" id="screen">
+
+    <!-- 时钟小组件 -->
+    <div class="clock-widget" id="clockWidget" title="切换白天/黑夜模式">
+      <div class="clock-time" id="clockTime"></div>
+      <div class="clock-date" id="clockDate"></div>
+    </div>
+
+    <!-- 应用网格 -->
+    <button class="global-search-trigger" onclick="openGlobalSearch()">搜索聊天记录</button>
+
+    <div class="app-grid" id="appGrid"></div>
+
+    <!-- 底部 Dock -->
+    <div class="dock" id="dock"></div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <div class="global-search-overlay" id="globalSearchOverlay">
+      <div class="global-search-panel">
+        <form class="global-search-head" id="globalSearchForm">
+          <input id="globalSearchInput" type="search" maxlength="80" autocomplete="off" placeholder="搜一句话、关键词或名字">
+          <button type="submit">搜索</button>
+          <button type="button" class="global-search-close" onclick="closeGlobalSearch()" title="关闭">×</button>
+        </form>
+        <div class="global-search-meta" id="globalSearchMeta">会搜索群聊和两边私聊</div>
+        <div class="global-search-results" id="globalSearchResults"></div>
+      </div>
+    </div>
+
+  </div>
+
+<script>
+/* ── 应用注册表 ─────────────────────────────────── */
+const APPS = [
+  { id: 'chat',     name: '聊天',     icon: '/public/funIcon_0005_聊天.png',   url: '/chat',  dock: true },
+  { id: 'chatroom', name: '聊天室', icon: '/public/funIcon_0020_聊天室.png', url: '/chatroom' ,  dock: true  },
+  { id: 'memory',   name: '记忆库',   icon: '/public/funIcon_0006_日记本.png',  url: '/memory' ,  dock: true },
+  { id: 'moments',  name: '朋友圈',   icon: '/public/funIcon_0010_朋友圈.png',  url: '/moments' ,  dock: true },
+  { id: 'worldbook',name: '世界书',   icon: '/public/funIcon_0007_世界书.png',  url: '/worldbook' },
+  { id: 'theater',  name: '小剧场',   icon: '/public/funIcon_0009_小剧场.png',  url: '/theater' },
+  <!--   { id: 'whisper',  name: '密语时刻', icon: '/public/funIcon_0011_密语时刻.png', url: '/chat?whisper=1' },-->
+  { id: 'alarm',    name: '闹钟',     icon: '/public/funIcon_0012_闹钟.png',    url: '/schedule' },
+  { id: 'settings', name: '设置',     icon: '/public/funIcon_0008_设置.png',    url: '/settings' },
+  { id: 'camera',   name: '监控摄像头', icon: '/public/funIcon_0014_监控.png', url: '/camera' },
+  { id: 'logs',     name: '监控日志', icon: '/public/funIcon_0015_监控日志.png',   url: '/monitor-logs' },
+  { id: 'location', name: '定位追踪',     icon: '/public/funIcon_0013_地图.png',    url: '/location' },
+  { id: 'activity', name: '活动日志',     icon: '/public/funIcon_0000_备忘录.png', url: '/activity-logs' },
+  { id: 'health',   name: '健康',     icon: '/public/funIcon_0003_健康心.png', url: '/health' },
+  { id: 'reading',  name: '陪伴阅读',     icon: '/public/funIcon_0016_陪伴阅读.png',   url: '/reading' },
+  { id: 'ghost-forest', name: '奥罗斯幽林', icon: '/public/funIcon_0017_奥罗斯幽林.png', url: '/ghost-forest' },
+  { id: 'gift', name: '爱的印记', icon: '/public/funIcon_0018_爱的印记.png', url: '/gift' },
+  { id: 'fund', name: '奥罗斯财团', icon: '/public/funIcon_0019_奥罗斯财团.png', url: '/fund' },
+  { id: 'playground', name: '娱乐室', icon: '/public/funIcon_0019_娱乐室.png', url: '/playground' },
+  { id: 'doudizhu', name: '斗地主', icon: '/public/funIcon_0021_斗地主.png', url: '/doudizhu' },
+  { id: 'seeky', name: 'Seeky', icon: '/public/funIcon_0022_Seeky.png', url: '/seeky' },
+];
+
+function applyAionTheme(theme) {
+  const next = theme === 'light' ? 'light' : 'dark';
+  document.body.dataset.theme = next;
+  localStorage.setItem('aion_chat_theme', next);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', next === 'dark' ? '#06091f' : '#ff8359');
+}
+
+function toggleAionTheme() {
+  const next = document.body.dataset.theme === 'light' ? 'dark' : 'light';
+  applyAionTheme(next);
+  if (window.parent !== window && typeof window.parent.applyAionTheme === 'function') {
+    window.parent.applyAionTheme(next);
+  }
+  showToast(next === 'dark' ? '已切换黑夜模式' : '已切换白天模式');
+}
+
+applyAionTheme(localStorage.getItem('aion_chat_theme') || 'light');
+
+/* ── 渲染 ─────────────────────────────────────── */
+function renderApps() {
+  const grid = document.getElementById('appGrid');
+  const dock = document.getElementById('dock');
+
+  const gridApps = APPS.filter(a => !a.dock);
+  const dockApps = APPS.filter(a => a.dock);
+
+  grid.innerHTML = gridApps.map(app => appHTML(app)).join('');
+  dock.innerHTML = dockApps.map(app => appHTML(app)).join('');
+}
+
+function appHTML(app) {
+  const disabled = !app.url;
+  const badgeId = app.id === 'moments' ? 'id="momentsBadge"' : '';
+  return `
+    <a class="app-icon ${disabled ? 'disabled' : ''}"
+       ${app.url ? `onclick="openApp('${app.url}')"` : `onclick="showToast('${app.name} — 还在做哦！😏')"`}
+       role="button" tabindex="0">
+      <div class="icon-img"><img src="${app.icon}" alt="${app.name}" draggable="false"><div class="badge-dot" ${badgeId}></div></div>
+      <span class="icon-label">${app.name}</span>
+    </a>`;
+}
+
+/* ── 打开应用 ── */
+function openApp(url) {
+  // 在 iframe 中时，如果目标是 /chat 则关闭浮层回到聊天页
+  if (window.parent !== window) {
+    if (url === '/chat' || url.startsWith('/chat?')) {
+      try {
+        if (url.includes('whisper=1')) window.parent.openWhisper();
+        window.parent.closeSubPage();
+      } catch(e) {}
+      return;
+    }
+    if (typeof window.parent.openSubPage === 'function') {
+      const screen = document.getElementById('screen');
+      screen.classList.add('navigating');
+      setTimeout(() => window.parent.openSubPage(url), 200);
+      return;
+    }
+  }
+  const screen = document.getElementById('screen');
+  screen.classList.add('navigating');
+  setTimeout(() => { window.location.href = url; }, 200);
+}
+
+/* ── Toast ── */
+let globalSearchItems = [];
+function hsEsc(s) {
+  const d = document.createElement('div');
+  d.textContent = s == null ? '' : String(s);
+  return d.innerHTML;
+}
+function hsTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts * 1000);
+  return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+function openGlobalSearch() {
+  document.getElementById('globalSearchOverlay').classList.add('show');
+  setTimeout(() => document.getElementById('globalSearchInput').focus(), 0);
+}
+function closeGlobalSearch() {
+  document.getElementById('globalSearchOverlay').classList.remove('show');
+}
+function hsSnippet(content, keyword) {
+  const text = String(content || '').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  const needle = String(keyword || '').toLocaleLowerCase();
+  const lower = text.toLocaleLowerCase();
+  const idx = needle ? lower.indexOf(needle) : -1;
+  if (idx < 0) return text.length > 110 ? text.slice(0, 110) + '...' : text;
+  const start = Math.max(0, idx - 32);
+  const end = Math.min(text.length, idx + keyword.length + 70);
+  return `${start > 0 ? '...' : ''}${text.slice(start, end)}${end < text.length ? '...' : ''}`;
+}
+function hsHighlight(text, keyword) {
+  const value = String(text || '');
+  const needle = String(keyword || '');
+  if (!needle) return hsEsc(value);
+  const idx = value.toLocaleLowerCase().indexOf(needle.toLocaleLowerCase());
+  if (idx < 0) return hsEsc(value);
+  return hsEsc(value.slice(0, idx)) + '<mark>' + hsEsc(value.slice(idx, idx + needle.length)) + '</mark>' + hsEsc(value.slice(idx + needle.length));
+}
+function renderGlobalSearch(items, keyword) {
+  const list = document.getElementById('globalSearchResults');
+  if (!items.length) {
+    list.innerHTML = '<div class="global-search-meta">没有匹配的聊天记录</div>';
+    return;
+  }
+  list.innerHTML = items.map((item, idx) => {
+    const snippet = hsSnippet(item.content || '', keyword);
+    const title = `${item.target_title || item.source_label || ''} · ${item.speaker_name || ''}`;
+    return `<button class="global-search-item" type="button" onclick="openGlobalSearchResult(${idx})">
+      <div class="gsi-top"><span class="gsi-badge">${hsEsc(item.source_label || '')}</span><span class="gsi-time">${hsEsc(hsTime(item.created_at))}</span></div>
+      <div class="gsi-title">${hsEsc(title)}</div>
+      <div class="gsi-snippet">${hsHighlight(snippet, keyword)}</div>
+    </button>`;
+  }).join('');
+}
+async function runGlobalSearch(e) {
+  e?.preventDefault();
+  const input = document.getElementById('globalSearchInput');
+  const meta = document.getElementById('globalSearchMeta');
+  const keyword = input.value.trim();
+  if (!keyword) {
+    meta.textContent = '会搜索群聊和两边私聊';
+    document.getElementById('globalSearchResults').innerHTML = '';
+    return;
+  }
+  meta.textContent = '离线模式，暂不支持聊天记录搜索';
+  document.getElementById('globalSearchResults').innerHTML = '';
+}
+function openGlobalSearchResult(index) {
+  const item = globalSearchItems[index];
+  if (!item) return;
+  closeGlobalSearch();
+  if (window.parent !== window) {
+    if (typeof window.parent.jumpToGlobalSearchTarget === 'function') {
+      window.parent.jumpToGlobalSearchTarget(item);
+      return;
+    }
+    if (item.url && typeof window.parent.openSubPage === 'function' && !item.url.startsWith('/chat?')) {
+      window.parent.openSubPage(item.url);
+      return;
+    }
+  }
+  if (item.url) window.location.href = item.url;
+}
+
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+/* ── 时钟 ── */
+const _weekdays = ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(now.getMinutes()).padStart(2, '0');
+  document.getElementById('clockTime').textContent = `${h}:${m}`;
+  document.getElementById('clockDate').textContent =
+    `${now.getMonth()+1}月${now.getDate()}日${_weekdays[now.getDay()]}`;
+}
+
+/* ── 初始化 ── */
+renderApps();
+updateClock();
+setInterval(updateClock, 15000);
+document.getElementById('clockWidget').addEventListener('click', toggleAionTheme);
+document.getElementById('globalSearchForm').addEventListener('submit', runGlobalSearch);
+document.getElementById('globalSearchOverlay').addEventListener('click', e => {
+  if (e.target.id === 'globalSearchOverlay') closeGlobalSearch();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeGlobalSearch();
+});
+
+/* ── 朋友圈未读红点检查（离线模式stub） ── */
+async function checkMomentsUnread() {
+  try {
+    // 离线模式：直接返回空数据，不发网络请求
+    const badge = document.getElementById('momentsBadge');
+    if (badge) badge.classList.remove('show');
+  } catch(e) {}
+}
+checkMomentsUnread();
+setInterval(checkMomentsUnread, 60000);
+</script>
+<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>
