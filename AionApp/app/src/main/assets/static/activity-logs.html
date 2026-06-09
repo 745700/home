@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>活动日志 - Aion</title>
+<link rel="stylesheet" href="/static/common.css">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#ff8359">
+<style>
+/* ── 筛选栏 ── */
+.filter-row {
+  display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap;
+}
+.filter-row select, .filter-row button {
+  background:var(--surface2); color:var(--text); border:1px solid var(--border);
+  border-radius:6px; padding:6px 10px; font-size:13px; outline:none; cursor:pointer;
+}
+.filter-row select { flex:1; min-width:0; }
+.filter-row .active-filter {
+  background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600;
+}
+.activity-tabs {
+  display:flex; gap:6px; padding:8px 12px 0; background:var(--surface);
+}
+.activity-tab {
+  flex:1; border:1px solid var(--border); background:var(--surface2); color:var(--text2);
+  border-radius:8px; padding:8px 0; font-size:13px; font-weight:600; cursor:pointer;
+}
+.activity-tab.active {
+  background:var(--accent); border-color:var(--accent); color:#fff;
+}
+.activity-pane { display:none; }
+.activity-pane.active { display:block; }
+
+/* ── 统计信息 ── */
+.stats-bar {
+  display:flex; gap:12px; margin-bottom:10px; font-size:12px; color:var(--text2);
+  flex-wrap:wrap;
+}
+.stats-bar .stat-item {
+  display:flex; align-items:center; gap:4px;
+}
+.stats-bar .stat-dot {
+  width:8px; height:8px; border-radius:50%; flex-shrink:0;
+}
+.stat-dot.pc { background:#4285f4; }
+.stat-dot.phone { background:#34a853; }
+
+/* ── 日志列表 ── */
+.log-list {
+  flex:1; overflow-y:auto; max-height:calc(100dvh - 200px);
+  border:1px solid var(--border); border-radius:8px; background:var(--bg); padding:4px;
+}
+.log-entry {
+  padding:8px 10px; border-bottom:1px solid var(--border); font-size:13px; line-height:1.5;
+  display:flex; align-items:flex-start; gap:8px;
+}
+.log-entry:last-child { border-bottom:none; }
+
+.log-device {
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:20px; height:20px; border-radius:4px; font-size:11px; flex-shrink:0;
+  font-weight:600; padding:0 4px; margin-top:1px;
+}
+.log-device.pc { background:#e3f2fd; color:#1565c0; }
+.log-device.phone { background:#e8f5e9; color:#2e7d32; }
+
+.log-body { flex:1; min-width:0; }
+.log-time { color:var(--text2); font-size:11px; font-family:monospace; margin-right:6px; }
+.log-app { font-weight:600; color:var(--text); }
+.log-action { color:var(--text2); font-size:12px; }
+.log-title { color:var(--text2); font-size:12px; margin-top:2px; word-break:break-all; }
+.log-empty { padding:24px; text-align:center; color:var(--text3); font-size:14px; }
+
+/* ── 实时指示器 ── */
+.live-dot {
+  width:8px; height:8px; border-radius:50%; background:#4caf50;
+  animation:livePulse 1.5s ease-in-out infinite; display:inline-block; margin-left:6px;
+  vertical-align:middle;
+}
+@keyframes livePulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* ── 摘要弹窗 ── */
+.summary-overlay {
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:100;
+  align-items:center; justify-content:center; padding:16px;
+}
+.summary-overlay.show { display:flex; }
+.summary-panel {
+  background:var(--surface); border-radius:12px; width:100%; max-width:520px;
+  max-height:80vh; display:flex; flex-direction:column; box-shadow:0 8px 32px rgba(0,0,0,0.25);
+}
+.summary-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 16px; border-bottom:1px solid var(--border); flex-shrink:0;
+}
+.summary-header h3 { margin:0; font-size:15px; }
+.summary-close {
+  background:none; border:none; font-size:20px; color:var(--text2); cursor:pointer; padding:0 4px;
+}
+.summary-body {
+  overflow-y:auto; padding:12px 16px; flex:1;
+}
+.summary-item {
+  padding:10px 0; border-bottom:1px solid var(--border); font-size:13px; line-height:1.6;
+}
+.summary-item:last-child { border-bottom:none; }
+.summary-time {
+  font-family:monospace; font-size:12px; color:var(--accent); font-weight:600; margin-right:8px;
+}
+.summary-count {
+  font-size:11px; color:var(--text3); margin-left:6px;
+}
+.summary-text { color:var(--text); }
+.summary-empty { padding:32px; text-align:center; color:var(--text3); font-size:14px; }
+.summary-idle { color:var(--text3); font-style:italic; }
+.summary-stats {
+  padding:10px 16px; border-top:1px solid var(--border); font-size:12px; color:var(--text2);
+  text-align:center; flex-shrink:0;
+}
+.timeline-toolbar {
+  display:flex; gap:8px; align-items:center; margin-bottom:10px;
+}
+.timeline-toolbar select, .timeline-toolbar button, .timeline-toolbar input {
+  border:1px solid var(--border); background:var(--surface2); color:var(--text);
+  border-radius:7px; padding:7px 10px; font-size:13px; outline:none;
+}
+.timeline-toolbar select { flex:1; min-width:0; }
+.timeline-toolbar input { width:72px; }
+.idle-toolbar-label {
+  font-size:12px; color:var(--text2); white-space:nowrap;
+}
+.idle-test-btn.running {
+  opacity:.7; pointer-events:none;
+}
+.timeline-list {
+  flex:1; overflow-y:auto; max-height:calc(100dvh - 190px);
+  background:transparent; padding:4px 0 8px;
+}
+.timeline-empty {
+  padding:32px 18px; text-align:center; color:var(--text3); font-size:14px;
+}
+.timeline-row {
+  position:relative; display:grid; grid-template-columns:22px 1fr;
+  gap:10px; padding:4px 8px 18px 4px;
+}
+.timeline-row::before {
+  content:""; position:absolute; left:14px; top:0; bottom:0;
+  width:1px; background:var(--border);
+}
+.timeline-row:first-child::before { top:12px; }
+.timeline-row:last-child::before { bottom:auto; height:12px; }
+.timeline-dot {
+  position:relative; z-index:1; width:9px; height:9px; border-radius:50%;
+  background:var(--accent); margin:8px auto 0; box-shadow:0 0 0 4px var(--surface);
+}
+.timeline-time {
+  color:var(--accent); font-family:ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size:12px; line-height:18px;
+}
+.timeline-main { min-width:0; }
+.timeline-title {
+  display:inline; color:var(--text); font-size:14px; font-weight:600;
+  line-height:1.45; cursor:pointer; user-select:none; -webkit-user-select:none;
+  -webkit-touch-callout:none;
+}
+.timeline-title:active { color:var(--accent); }
+.timeline-line-content { padding-top:3px; }
+.timeline-popover {
+  position:fixed; z-index:260; max-width:min(310px, calc(100vw - 28px));
+  background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  box-shadow:0 10px 30px rgba(0,0,0,0.18); padding:10px 12px;
+  color:var(--text); font-size:13px; line-height:1.55; display:none;
+}
+.timeline-popover.show { display:block; }
+.timeline-popover-title {
+  font-size:13px; font-weight:700; color:var(--text); margin-bottom:4px;
+}
+.timeline-popover-time {
+  color:var(--accent); font-family:ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size:11px; margin-bottom:6px;
+}
+.timeline-popover-detail {
+  color:var(--text2); white-space:pre-wrap; word-break:break-word;
+}
+.timeline-images {
+  display:grid; grid-template-columns:repeat(3, minmax(0, 1fr));
+  gap:6px; margin-top:8px; max-width:300px;
+}
+.timeline-images img {
+  width:100%; aspect-ratio:1; object-fit:cover; border-radius:6px;
+  background:var(--surface2); display:block; cursor:pointer;
+}
+.timeline-meta {
+  margin:0 0 6px 32px; color:var(--text3); font-size:11px;
+}
+</style>
+</head>
+<body>
+<div class="sub-page">
+  <div class="top-bar">
+    <button class="back-btn" onclick="location.href='/'">⬅</button>
+    <h2>📊 活动日志 <span class="live-dot" id="liveDot" title="实时接收中"></span></h2>
+    <div style="margin-left:auto; display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text2);">
+      <span>AI联动</span>
+      <label class="toggle-switch" title="开启后AI可以查看设备动态、哨兵/监督也会携带活动摘要">
+        <input type="checkbox" id="activityTrackingToggle" onchange="toggleActivityTracking(this.checked)">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+  </div>
+  <div class="activity-tabs">
+    <button class="activity-tab active" id="tabLogs" onclick="switchActivityTab('logs')">日志</button>
+    <button class="activity-tab" id="tabTimeline" onclick="switchActivityTab('timeline')">家庭动态</button>
+  </div>
+  <div class="page-content">
+    <div class="activity-pane active" id="logsPane">
+    <!-- 筛选 -->
+    <div class="filter-row">
+      <select id="viewMode" onchange="onViewModeChange()">
+        <option value="recent" selected>最近 3 小时</option>
+        <option value="date">按日期查看</option>
+      </select>
+      <select id="dateSelect" onchange="loadByDate()" style="display:none"></select>
+      <button id="filterAll" class="active-filter" onclick="setDeviceFilter('all')">全部</button>
+      <button id="filterPC" onclick="setDeviceFilter('pc')">💻</button>
+      <button id="filterPhone" onclick="setDeviceFilter('phone')">📱</button>
+      <button onclick="refresh()">🔄</button>
+      <button onclick="clearAllLogs()" style="color:var(--danger)">🗑</button>
+      <button onclick="openSummary()" title="查看活动摘要">📋</button>
+    </div>
+    <!-- 统计 -->
+    <div class="stats-bar" id="statsBar"></div>
+    <!-- 日志 -->
+    <div class="log-list" id="logList"><div class="log-empty">暂无活动记录</div></div>
+    </div>
+    <div class="activity-pane" id="timelinePane">
+      <div class="timeline-toolbar">
+        <select id="timelineHours" onchange="loadTimeline()">
+          <option value="6">最近 6 小时</option>
+          <option value="24" selected>今天 / 最近 24 小时</option>
+          <option value="72">最近 3 天</option>
+          <option value="168">最近 7 天</option>
+        </select>
+        <button onclick="loadTimeline()">刷新</button>
+      </div>
+      <div class="timeline-toolbar">
+        <span class="idle-toolbar-label">AI空闲</span>
+        <input id="idleIntervalMinMinutes" type="number" min="5" step="5" value="90" title="自动触发最短间隔（分钟）">
+        <span class="idle-toolbar-label">-</span>
+        <input id="idleIntervalMaxMinutes" type="number" min="5" step="5" value="150" title="自动触发最长间隔（分钟）">
+        <button onclick="saveIdleConfig()">保存</button>
+        <button id="idleTestBtn" class="idle-test-btn" onclick="runIdleTest()">测试触发</button>
+      </div>
+      <div class="timeline-toolbar">
+        <label class="idle-toolbar-label"><input id="idleEnabledToggle" type="checkbox"> 闲时自主行动</label>
+      </div>
+      <div class="timeline-list" id="timelineList">
+        <div class="timeline-empty">加载中...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="timeline-popover" id="timelinePopover"></div>
+
+<!-- 摘要弹窗 -->
+<div class="summary-overlay" id="summaryOverlay" onclick="if(event.target===this)closeSummary()">
+  <div class="summary-panel">
+    <div class="summary-header">
+      <h3>📋 活动摘要（每10分钟）</h3>
+      <button class="summary-close" onclick="closeSummary()">✕</button>
+    </div>
+    <div class="summary-body" id="summaryBody">
+      <div class="summary-empty">加载中...</div>
+    </div>
+    <div class="summary-stats" id="summaryStats"></div>
+  </div>
+</div>
+
+<script src="static/common.js"></script>
+<script>
+let allEntries = [];
+let deviceFilter = 'all';
+let currentActivityTab = 'logs';
+let timelineLoaded = false;
+let timelineItems = [];
+let timelinePressTimer = null;
+let idleConfig = null;
+
+function switchActivityTab(tab) {
+  hideTimelinePopover();
+  currentActivityTab = tab;
+  $('tabLogs').classList.toggle('active', tab === 'logs');
+  $('tabTimeline').classList.toggle('active', tab === 'timeline');
+  $('logsPane').classList.toggle('active', tab === 'logs');
+  $('timelinePane').classList.toggle('active', tab === 'timeline');
+  if (tab === 'timeline' && !timelineLoaded) loadTimeline();
+}
+
+function timelineDate(ts) {
+  const d = new Date(ts * 1000);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function renderTimelineImages(atts) {
+  if (!Array.isArray(atts) || !atts.length) return '';
+  const urls = atts.filter(u => typeof u === 'string' && u);
+  if (!urls.length) return '';
+  return `<div class="timeline-images">` + urls.map(url =>
+    `<img src="${escHtml(url)}" alt="配图" loading="lazy" onclick="window.open('${escHtml(url)}','_blank')">`
+  ).join('') + '</div>';
+}
+
+function renderTimeline(items) {
+  const el = $('timelineList');
+  const ordered = (items || []).slice().reverse();
+  timelineItems = ordered;
+  if (!ordered.length) {
+    el.innerHTML = '<div class="timeline-empty">暂无家庭动态</div>';
+    return;
+  }
+  let lastDate = '';
+  el.innerHTML = ordered.map((item, idx) => {
+    const date = timelineDate(item.timestamp);
+    const dateHtml = date !== lastDate ? `<div class="timeline-meta">${escHtml(date)}</div>` : '';
+    lastDate = date;
+    return `${dateHtml}<div class="timeline-row">
+      <div class="timeline-dot"></div>
+      <div class="timeline-main">
+        <div class="timeline-time">${escHtml(item.time || '')}</div>
+        <div class="timeline-line-content">
+          <span class="timeline-title"
+            onpointerdown="startTimelinePress(event, ${idx})"
+            onpointerup="cancelTimelinePress()"
+            onpointercancel="cancelTimelinePress()"
+            onpointerleave="cancelTimelinePress()"
+            oncontextmenu="showTimelinePopover(event, ${idx}); return false;">${escHtml(item.title || '')}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function startTimelinePress(event, idx) {
+  cancelTimelinePress();
+  const anchor = event.currentTarget;
+  timelinePressTimer = setTimeout(() => {
+    timelinePressTimer = null;
+    showTimelinePopover({ currentTarget: anchor }, idx);
+  }, 420);
+}
+
+function cancelTimelinePress() {
+  if (timelinePressTimer) {
+    clearTimeout(timelinePressTimer);
+    timelinePressTimer = null;
+  }
+}
+
+function hideTimelinePopover() {
+  const pop = $('timelinePopover');
+  pop.classList.remove('show');
+  pop.innerHTML = '';
+}
+
+function showTimelinePopover(event, idx) {
+  cancelTimelinePress();
+  const item = timelineItems[idx];
+  if (!item) return;
+  const pop = $('timelinePopover');
+  const detail = item.detail || '暂无详情';
+  pop.innerHTML = `
+    <div class="timeline-popover-time">${escHtml(timelineDate(item.timestamp))} ${escHtml(item.time || '')}</div>
+    <div class="timeline-popover-title">${escHtml(item.title || '')}</div>
+    <div class="timeline-popover-detail">${escHtml(detail)}</div>
+    ${renderTimelineImages(item.attachments)}
+  `;
+  pop.classList.add('show');
+  const rect = event.currentTarget ? event.currentTarget.getBoundingClientRect() : { left: 14, bottom: 80 };
+  const popRect = pop.getBoundingClientRect();
+  let left = Math.min(Math.max(14, rect.left), window.innerWidth - popRect.width - 14);
+  let top = rect.bottom + 8;
+  if (top + popRect.height > window.innerHeight - 14) {
+    top = Math.max(14, rect.top - popRect.height - 8);
+  }
+  pop.style.left = `${left}px`;
+  pop.style.top = `${top}px`;
+}
+
+document.addEventListener('pointerdown', event => {
+  const pop = $('timelinePopover');
+  if (!pop.classList.contains('show')) return;
+  if (pop.contains(event.target) || event.target.closest('.timeline-title')) return;
+  hideTimelinePopover();
+});
+
+async function loadTimeline() {
+  const hours = $('timelineHours').value;
+  const el = $('timelineList');
+  el.innerHTML = '<div class="timeline-empty">加载中...</div>';
+  try {
+    const data = await api('GET', `/api/timeline?hours=${hours}&limit=500`);
+    timelineLoaded = true;
+    renderTimeline(data.items || []);
+    el.scrollTop = el.scrollHeight;
+  } catch(e) {
+    el.innerHTML = '<div class="timeline-empty">加载失败</div>';
+  }
+}
+
+/* ── WebSocket 实时推送 ── */
+connectCommonWS(msg => {
+  if (msg.type === 'activity_log' && msg.data) {
+    // 仅在"最近"模式下实时追加
+    if ($('viewMode').value === 'recent') {
+      allEntries.push(msg.data);
+      renderEntries();
+      // 自动滚到底部
+      const el = $('logList');
+      el.scrollTop = el.scrollHeight;
+    }
+  }
+  if (msg.type === 'idle_event' && currentActivityTab === 'timeline') {
+    loadTimeline();
+  }
+});
+
+/* ── 视图切换 ── */
+function onViewModeChange() {
+  const mode = $('viewMode').value;
+  $('dateSelect').style.display = mode === 'date' ? '' : 'none';
+  if (mode === 'recent') {
+    loadRecent();
+  } else {
+    loadDates();
+  }
+}
+
+/* ── 设备筛选 ── */
+function setDeviceFilter(f) {
+  deviceFilter = f;
+  ['All','PC','Phone'].forEach(k => {
+    $('filter' + k).classList.toggle('active-filter', k.toLowerCase() === f);
+  });
+  renderEntries();
+}
+
+/* ── 加载最近 N 小时 ── */
+async function loadRecent() {
+  try {
+    const data = await api('GET', '/api/activity/recent');
+    allEntries = data.entries || [];
+    renderEntries();
+    const el = $('logList'); el.scrollTop = el.scrollHeight;
+  } catch(e) {
+    $('logList').innerHTML = '<div class="log-empty">加载失败</div>';
+  }
+}
+
+/* ── 加载日期列表 ── */
+async function loadDates() {
+  try {
+    const data = await api('GET', '/api/activity/dates');
+    const sel = $('dateSelect');
+    if (!data.dates || data.dates.length === 0) {
+      sel.innerHTML = '<option>暂无日志</option>';
+      $('logList').innerHTML = '<div class="log-empty">暂无活动记录</div>';
+      return;
+    }
+    sel.innerHTML = data.dates.map(d => `<option value="${d}">${d}</option>`).join('');
+    await loadByDate();
+  } catch(e) {
+    $('logList').innerHTML = '<div class="log-empty">加载失败</div>';
+  }
+}
+
+/* ── 加载指定日期 ── */
+async function loadByDate() {
+  const date = $('dateSelect').value;
+  if (!date || date === '暂无日志') return;
+  try {
+    const data = await api('GET', `/api/activity/logs/${date}`);
+    allEntries = data.entries || [];
+    renderEntries();
+    const el = $('logList'); el.scrollTop = el.scrollHeight;
+  } catch(e) {
+    $('logList').innerHTML = '<div class="log-empty">加载失败</div>';
+  }
+}
+
+/* ── 渲染 ── */
+function renderEntries() {
+  const filtered = deviceFilter === 'all'
+    ? allEntries
+    : allEntries.filter(e => e.device === deviceFilter);
+
+  // 统计
+  const pcCount = allEntries.filter(e => e.device === 'pc').length;
+  const phoneCount = allEntries.filter(e => e.device === 'phone').length;
+  $('statsBar').innerHTML = `
+    <span class="stat-item"><span class="stat-dot pc"></span> PC: ${pcCount} 条</span>
+    <span class="stat-item"><span class="stat-dot phone"></span> 手机: ${phoneCount} 条</span>
+    <span class="stat-item">共 ${allEntries.length} 条</span>
+  `;
+
+  const el = $('logList');
+  if (filtered.length === 0) {
+    el.innerHTML = '<div class="log-empty">暂无活动记录</div>';
+    return;
+  }
+
+  el.innerHTML = filtered.map(e => {
+    const deviceCls = e.device === 'pc' ? 'pc' : 'phone';
+    const deviceLabel = e.device === 'pc' ? 'PC' : '📱';
+    // PC: 显示窗口标题；手机: 如果 title 是包名就不显示
+    const isPackageName = e.title && e.title.includes('.') && !e.title.includes(' ');
+    const showTitle = e.title && !isPackageName && e.title !== e.app;
+    const titleHtml = showTitle
+      ? `<div class="log-title">${escHtml(e.title)}</div>`
+      : '';
+    // 动作描述
+    const action = e.device === 'phone' ? '打开了' : '正在使用';
+    return `<div class="log-entry">
+      <span class="log-device ${deviceCls}">${deviceLabel}</span>
+      <div class="log-body">
+        <span class="log-time">${escHtml(e.time || '')}</span>
+        <span class="log-action">${action} </span><span class="log-app">${escHtml(e.app || '')}</span>
+        ${titleHtml}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ── 刷新 ── */
+function refresh() {
+  if (currentActivityTab === 'timeline') {
+    loadTimeline();
+    return;
+  }
+  if ($('viewMode').value === 'recent') loadRecent();
+  else loadByDate();
+}
+
+/* ── 清除全部日志 ── */
+async function clearAllLogs() {
+  if (!confirm('确定要清除所有活动日志吗？')) return;
+  try {
+    const res = await api('POST', '/api/activity/clear');
+    if (res.ok) {
+      allEntries = [];
+      renderEntries();
+      showToast('已清除 ' + (res.deleted || 0) + ' 个日志文件');
+    } else {
+      showToast('清除失败');
+    }
+  } catch(e) {
+    showToast('清除失败');
+  }
+}
+
+/* ── 摘要弹窗 ── */
+async function openSummary() {
+  $('summaryOverlay').classList.add('show');
+  $('summaryBody').innerHTML = '<div class="summary-empty">加载中...</div>';
+  $('summaryStats').textContent = '';
+  try {
+    const data = await api('GET', '/api/activity/summary');
+    const items = data.summaries || [];
+    if (items.length === 0) {
+      $('summaryBody').innerHTML = '<div class="summary-empty">暂无活动摘要</div>';
+      return;
+    }
+    const totalRaw = items.reduce((s, i) => s + i.count, 0);
+    const activeItems = items.filter(i => i.count > 0);
+    $('summaryBody').innerHTML = items.map(i => {
+      const isIdle = i.count === 0;
+      const countHtml = isIdle ? '' : `<span class="summary-count">${i.count}条→1条</span>`;
+      const textCls = isIdle ? 'summary-text summary-idle' : 'summary-text';
+      return `<div class="summary-item">
+        <span class="summary-time">${escHtml(i.start)}~${escHtml(i.end)}</span>
+        ${countHtml}
+        <div class="${textCls}">${escHtml(i.summary)}</div>
+      </div>`;
+    }).join('');
+    $('summaryStats').textContent = `${totalRaw} 条原始记录 → ${activeItems.length} 条活动摘要 + ${items.length - activeItems.length} 段空闲`;
+    const sb = $('summaryBody'); sb.scrollTop = sb.scrollHeight;
+  } catch(e) {
+    $('summaryBody').innerHTML = '<div class="summary-empty">加载失败</div>';
+  }
+}
+function closeSummary() {
+  $('summaryOverlay').classList.remove('show');
+}
+
+/* ── AI联动总开关 ── */
+async function loadActivityConfig() {
+  try {
+    const data = await api('GET', '/api/activity/config');
+    $('activityTrackingToggle').checked = data.activity_tracking_enabled;
+  } catch(e) {}
+}
+async function loadIdleConfig() {
+  try {
+    idleConfig = await api('GET', '/api/idle-autonomy/config');
+    const minInput = $('idleIntervalMinMinutes');
+    const maxInput = $('idleIntervalMaxMinutes');
+    if (minInput && idleConfig) minInput.value = idleConfig.interval_min_minutes || idleConfig.interval_minutes || 120;
+    if (maxInput && idleConfig) maxInput.value = idleConfig.interval_max_minutes || idleConfig.interval_minutes || 120;
+    const enabled = $('idleEnabledToggle');
+    if (enabled && idleConfig) enabled.checked = !!idleConfig.enabled;
+  } catch(e) {}
+}
+async function saveIdleConfig() {
+  let minMinutes = Math.max(5, parseInt($('idleIntervalMinMinutes')?.value || '120', 10) || 120);
+  let maxMinutes = Math.max(5, parseInt($('idleIntervalMaxMinutes')?.value || String(minMinutes), 10) || minMinutes);
+  if (maxMinutes < minMinutes) [minMinutes, maxMinutes] = [maxMinutes, minMinutes];
+  try {
+    idleConfig = await api('PUT', '/api/idle-autonomy/config', {
+      enabled: !!$('idleEnabledToggle')?.checked,
+      interval_min_minutes: minMinutes,
+      interval_max_minutes: maxMinutes
+    });
+    $('idleIntervalMinMinutes').value = idleConfig.interval_min_minutes || minMinutes;
+    $('idleIntervalMaxMinutes').value = idleConfig.interval_max_minutes || maxMinutes;
+    showToast('AI空闲间隔已保存');
+  } catch(e) {
+    showToast('保存失败');
+  }
+}
+async function saveIdleEnabled(enabled) {
+  const toggle = $('idleEnabledToggle');
+  try {
+    idleConfig = await api('PUT', '/api/idle-autonomy/config', {
+      enabled: !!enabled
+    });
+    if (toggle) toggle.checked = !!idleConfig.enabled;
+    showToast(enabled ? '闲时自主行动已开启' : '闲时自主行动已关闭');
+  } catch(e) {
+    showToast('保存失败');
+    if (toggle) toggle.checked = !enabled;
+  }
+}
+async function runIdleTest() {
+  const btn = $('idleTestBtn');
+  if (btn) {
+    btn.classList.add('running');
+    btn.textContent = '触发中...';
+  }
+  try {
+    const res = await api('POST', '/api/idle-autonomy/run-once');
+    if (res.ok) {
+      showToast('AI空闲互动已触发');
+      timelineLoaded = false;
+      if (currentActivityTab === 'timeline') loadTimeline();
+    } else {
+      showToast(res.error || res.skipped || '触发失败');
+    }
+  } catch(e) {
+    showToast('触发失败');
+  } finally {
+    if (btn) {
+      btn.classList.remove('running');
+      btn.textContent = '测试触发';
+    }
+  }
+}
+async function toggleActivityTracking(enabled) {
+  try {
+    await api('PUT', '/api/activity/config', { activity_tracking_enabled: enabled });
+    showToast(enabled ? 'AI联动已开启' : 'AI联动已关闭');
+  } catch(e) {
+    showToast('设置失败');
+    $('activityTrackingToggle').checked = !enabled;
+  }
+}
+
+/* ── 初始化 ── */
+loadRecent();
+loadActivityConfig();
+loadIdleConfig();
+$('idleEnabledToggle')?.addEventListener('change', e => saveIdleEnabled(e.target.checked));
+</script>
+</body>
+</html>
