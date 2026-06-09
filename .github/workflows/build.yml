@@ -2,12 +2,11 @@ name: Build AionApp APK
 
 on:
   push:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
   build:
-    permissions:
-      contents: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,42 +17,27 @@ jobs:
           java-version: 17
           distribution: temurin
 
-      - name: Install Android SDK
-        run: |
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O /tmp/cmdline-tools.zip
-          unzip -q /tmp/cmdline-tools.zip -d /tmp/android-cmdline
-          mkdir -p /opt/android-sdk/cmdline-tools
-          mv /tmp/android-cmdline/cmdline-tools /opt/android-sdk/cmdline-tools/latest
-          export ANDROID_HOME=/opt/android-sdk
-          mkdir -p $ANDROID_HOME/licenses
-          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_HOME/licenses/android-sdk-license
-          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_HOME/licenses/android-sdk-license
-          echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" 2>&1 | tail -3
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/setup-gradle@v4
 
       - name: Create local.properties
         run: |
-          echo "sdk.dir=/opt/android-sdk" > AionApp/local.properties
-          echo "org.gradle.jvmargs=-Xmx2048m" >> AionApp/gradle.properties
+          echo "sdk.dir=$ANDROID_HOME" > AionApp/local.properties
+          echo "org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8" >> AionApp/gradle.properties
 
       - name: Build debug APK
         run: |
           cd AionApp
-          chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --warning-mode=none 2>&1
+          ./gradlew assembleDebug \
+            --no-daemon \
+            --warning-mode=none 2>&1 | tail -30
 
-      - name: Verify APK exists
-        run: |
-          ls -lh AionApp/app/build/outputs/apk/debug/app-debug.apk
-
-      - name: Create Release
-        if: success()
-        uses: softprops/action-gh-release@v2
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
-          draft: false
-          prerelease: false
-          tag_name: v1.0.1-offline
-          name: Offline APK v1.0.1
-          files: AionApp/app/build/outputs/apk/debug/app-debug.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: aion-app-debug
+          path: AionApp/app/build/outputs/apk/debug/*.apk
+          retention-days: 7
