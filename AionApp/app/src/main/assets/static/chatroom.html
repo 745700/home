@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>聊天室</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="public/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#f0ebe6">
+<link rel="stylesheet" href="/static/chatroom.css">
+</head>
+<body>
+  <div class="app">
+    <!-- 侧栏 -->
+    <div class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <button class="home-btn" onclick="goHome()" title="返回主页">🏠</button>
+        <button onclick="createRoom('group')">+ 群聊</button>
+        <button class="connor-btn" onclick="createRoom('connor_1v1')">+ 私聊</button>
+      </div>
+      <div class="room-tabs">
+        <button class="room-tab active" data-tab="group" onclick="switchTab('group')">群聊</button>
+        <button class="room-tab" data-tab="connor_1v1" onclick="switchTab('connor_1v1')">私聊</button>
+      </div>
+      <div class="room-list" id="roomList"></div>
+      <div class="sidebar-mem-btn">
+        <button onclick="openMemory()">📚 记忆库</button>
+      </div>
+      <div class="sidebar-mem-btn">
+        <button onclick="crOpenPersona()">🎭 人设</button>
+      </div>
+      <div class="sidebar-mem-btn">
+        <button onclick="crOpenWhisper()">💗 密语时刻</button>
+      </div>
+      <div class="sidebar-mem-btn">
+        <button onclick="crOpenWalletPanel()">💰 钱包</button>
+      </div>
+      <div class="sidebar-mem-btn">
+        <button onclick="crOpenDiary()">📔 日记本</button>
+      </div>
+      <div class="sidebar-footer">
+        <span class="connor-dot" id="connorDot"></span>
+        <span id="connorStatus">检查中...</span>
+      </div>
+    </div>
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+    <!-- 聊天区 -->
+    <div class="chat-area" id="chatArea">
+      <div class="chat-header">
+        <button class="menu-btn" id="menuBtn">☰</button>
+        <div class="room-title" id="roomTitle">聊天室</div>
+        <div class="header-actions" id="headerActions">
+          <button class="reply-once-btn aion" id="replyAionBtn" onclick="triggerReplyOnce('aion')" style="display:none">AI 说</button>
+          <button class="reply-once-btn connor" id="replyConnorBtn" onclick="triggerReplyOnce('connor')" style="display:none">Connor 说</button>
+          <button class="ai-chat-btn" id="aiChatBtn" onclick="triggerAiChat()" style="display:none">💬 让他们聊</button>
+          <button id="chatSearchBtn" onclick="openChatSearch()" title="搜索聊天记录">搜索</button>
+          <button onclick="openSettings()">⚙️</button>
+        </div>
+      </div>
+
+      <div class="chat-search-panel" id="chatSearchPanel">
+        <form class="chat-search-form" id="chatSearchForm">
+          <input id="chatSearchInput" type="search" maxlength="80" autocomplete="off" placeholder="搜索聊天记录">
+          <button type="submit">搜索</button>
+          <button type="button" class="chat-search-close" onclick="closeChatSearch()" title="关闭">×</button>
+        </form>
+        <div class="chat-search-meta" id="chatSearchMeta">输入关键词后回车</div>
+        <div class="chat-search-results" id="chatSearchResults"></div>
+      </div>
+
+      <div class="messages" id="messages">
+        <div class="empty-state">
+          <div class="icon">💬</div>
+          <div>选择或创建一个聊天室开始吧</div>
+        </div>
+      </div>
+
+      <div class="preview-area" id="previewArea"></div>
+      <form class="composer" id="composer" style="display:none">
+        <input type="file" id="fileInput" accept="image/*,audio/*" multiple hidden>
+        <div class="plus-menu-wrap">
+          <button type="button" class="plus-btn" onclick="crTogglePlusMenu()" title="更多功能">＋</button>
+          <div class="plus-menu" id="crPlusMenu">
+            <div class="plus-menu-item" onclick="crClosePlusMenu();document.getElementById('fileInput').click()"><span class="pm-icon">🖼</span>上传图片</div>
+            <div class="plus-menu-item" onclick="crClosePlusMenu();crOpenCamera()"><span class="pm-icon">📷</span>拍照</div>
+            <div class="plus-menu-item" onclick="crClosePlusMenu();crToggleVoiceMode()"><span class="pm-icon">🎤</span>语音消息</div>
+            <div class="plus-menu-item" onclick="crClosePlusMenu();crOpenWhisper()"><span class="pm-icon">💗</span>密语时刻</div>
+            <div class="plus-menu-item" onclick="crClosePlusMenu();crOpenTransferDialog()"><span class="pm-icon">💰</span>转账</div>
+          </div>
+        </div>
+        <textarea id="input" rows="1" maxlength="4000" placeholder="发消息..."></textarea>
+        <button type="submit" class="send-btn" id="sendBtn">➤</button>
+      </form>
+      <div class="voice-mode-row" id="crVoiceModeRow">
+        <button type="button" class="voice-kbd-btn" onclick="crToggleVoiceMode()" title="切换键盘">⌨</button>
+        <div class="voice-hold-btn" id="crVoiceHoldBtn">按住 说话</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 设置面板 -->
+  <div class="settings-overlay" id="settingsOverlay">
+    <div class="settings-panel">
+      <div class="panel-header">
+        <span>房间设置</span>
+        <button class="close-btn" onclick="closeSettings()">✕</button>
+      </div>
+      <div class="panel-body">
+        <div class="field">
+          <label>房间名称</label>
+          <input id="setTitle" type="text">
+        </div>
+        <div class="settings-inline-row">
+          <div class="field">
+            <label>跨窗口上下文（条）</label>
+            <input id="setContextLimit" type="number" min="5" max="120" value="30">
+          </div>
+          <div class="field" id="fieldAiRounds">
+            <label>AI 互聊回合上限</label>
+            <input id="setAiRounds" type="number" min="1" max="10" value="1">
+          </div>
+        </div>
+        <div class="field" id="fieldReplyOrder">
+          <label>群聊回复顺序</label>
+          <select id="setReplyOrder">
+            <option value="random">随机</option>
+            <option value="aion" id="optAion">AI 优先</option>
+            <option value="connor" id="optConnor">第二位 AI 优先</option>
+            <option value="manual">指定回复</option>
+          </select>
+        </div>
+        <div class="field" id="fieldAionModel">
+          <label>Aion 模型线路</label>
+          <select id="setAionModel"></select>
+        </div>
+        <div class="field" id="fieldConnorModel">
+          <label>Connor 模型线路</label>
+          <select id="setConnorModel"></select>
+        </div>
+        <div class="settings-section-compact">
+          <div class="field tts-toggle-row">
+            <span>语音合成 (TTS)</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="setTtsEnabled" onchange="onTtsToggleChange()">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="field">
+            <label>AI 音色</label>
+            <select id="setTtsAionVoice"></select>
+          </div>
+          <div class="field">
+            <label>第二位 AI 音色</label>
+            <select id="setTtsConnorVoice"></select>
+          </div>
+        </div>
+        <button class="save-btn" onclick="saveSettings()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 人设面板 -->
+  <div class="settings-overlay" id="personaOverlay">
+    <div class="settings-panel">
+      <div class="panel-header">
+        <span>🎭 人设设定</span>
+        <button class="close-btn" onclick="crClosePersona()">✕</button>
+      </div>
+      <div class="panel-body">
+        <div class="field">
+          <label>第二位 AI 名字</label>
+          <input id="personaConnorName" type="text" placeholder="Connor">
+        </div>
+        <div class="field">
+          <label>第二位 AI 人设</label>
+          <textarea id="personaConnorText" rows="10" placeholder="输入第二位 AI 的角色设定..."></textarea>
+        </div>
+        <p style="color:var(--text3);font-size:12px;margin:4px 0 12px;">此人设对所有群聊和私聊房间统一生效。若存在 persona.md 文件，此处填写后将覆盖文件内容。</p>
+        <div class="field" style="margin-top:8px;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+            <input id="personaExtraEnabled" type="checkbox">
+            <span style="font-size:13px;color:var(--text2);">启用补充设定</span>
+          </div>
+          <textarea id="personaExtraText" rows="5" placeholder="补充设定内容..."></textarea>
+        </div>
+        <button class="save-btn" onclick="crSavePersona()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 记忆库悬浮窗 -->
+  <div class="memory-overlay" id="memoryOverlay">
+    <div class="memory-panel">
+      <div class="panel-header">
+        <span>📚 记忆库<span id="memCountBadge" style="margin-left:8px;color:var(--text3);font-size:12px;font-weight:400;"></span></span>
+        <button class="close-btn" onclick="closeMemory()">✕</button>
+      </div>
+      <div class="panel-body">
+        <div style="display:flex; gap:6px; margin-bottom:12px;">
+          <button class="mem-add-btn" style="flex:1;" onclick="showAddMemory()">+ 手动添加</button>
+          <button class="mem-add-btn" style="flex:1; background:var(--text3);" onclick="triggerDigest()">📝 总结记忆</button>
+        </div>
+        <!-- 添加/编辑表单 -->
+        <div id="memForm" style="display:none; margin-bottom:12px; padding:10px; background:var(--bg); border-radius:8px;">
+          <input type="hidden" id="memEditId">
+          <div class="field" style="margin-bottom:8px;">
+            <label>内容</label>
+            <textarea id="memContent" rows="3" placeholder="记忆内容..."></textarea>
+          </div>
+          <div style="display:flex; gap:8px; margin-bottom:8px;">
+            <div class="field" style="flex:1; margin-bottom:0;">
+              <label>关键词</label>
+              <input id="memKeywords" type="text" placeholder="逗号分隔">
+            </div>
+            <div class="field" style="width:80px; margin-bottom:0;">
+              <label>重要度</label>
+              <input id="memImportance" type="number" min="0" max="1" step="0.1" value="0.5">
+            </div>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button class="save-btn" style="flex:1; padding:7px;" onclick="saveMemory()">保存记忆</button>
+            <button class="save-btn" style="flex:none; padding:7px 14px; background:var(--text3);" onclick="hideMemForm()">取消</button>
+          </div>
+        </div>
+        <!-- 记忆列表 -->
+        <div id="memList"></div>
+      </div>
+    </div>
+    <!-- 原文追溯浮层 -->
+    <div id="memSourceOverlay" style="display:none; position:absolute; inset:0; background:var(--bg); z-index:20; overflow-y:auto; padding:12px;">
+      <div style="position:sticky;top:-12px;z-index:2;display:flex; justify-content:space-between; align-items:center; margin:-12px -12px 10px; padding:12px; background:var(--bg); border-bottom:1px solid var(--border);">
+        <span style="font-weight:600;">📜 原文记录</span>
+        <button class="close-btn" onclick="closeMemSource()">✕</button>
+      </div>
+      <div id="memSourceSummary" style="color:var(--text3);font-size:12px;margin-bottom:8px;"></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+        <button class="mem-add-btn" style="padding:6px 10px;flex:none;background:var(--bubble-other);color:var(--text);" onclick="setMemSourceSelection('recommended')">恢复预选</button>
+        <button class="mem-add-btn" style="padding:6px 10px;flex:none;background:var(--bubble-other);color:var(--text);" onclick="setMemSourceSelection('all')">全选</button>
+        <button class="mem-add-btn" style="padding:6px 10px;flex:none;background:var(--bubble-other);color:var(--text);" onclick="setMemSourceSelection('none')">全不选</button>
+        <button class="mem-add-btn" id="memSourceSaveBtn" style="padding:6px 12px;flex:none;" onclick="saveMemSourceSelection()">保存筛选</button>
+      </div>
+      <div id="memSourceList"></div>
+      <div style="position:sticky;bottom:-12px;z-index:2;margin:12px -12px -12px;padding:10px 12px;background:var(--bg);border-top:1px solid var(--border);display:flex;justify-content:flex-end;">
+        <button class="mem-add-btn" style="padding:8px 18px;flex:none;background:var(--bubble-other);color:var(--text);" onclick="closeMemSource()">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 图片查看器 -->
+  <div class="image-viewer" id="imageViewer" onclick="closeImageViewer()">
+    <img id="viewerImg" src="">
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- 密语时刻面板 -->
+  <div class="modal-overlay" id="crWhisperModal">
+    <div class="modal whisper-modal">
+      <h3>💗 密语时刻</h3>
+      <div class="whisper-conn-bar">
+        <div class="whisper-conn-left">
+          <div class="whisper-dot off" id="crToyDot"></div>
+          <span class="whisper-conn-label" id="crToyConnLabel">未连接</span>
+        </div>
+        <button class="whisper-btn-conn" id="crToyConnBtn" onclick="crToyToggleConnect()">连接</button>
+      </div>
+      <div class="whisper-toggle-row">
+        <span class="whisper-toggle-label">🔮 密语模式（开启后AI可控制玩具）</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="crWhisperModeToggle" onchange="crOnWhisperModeChange()">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="whisper-preset-grid" id="crToyPresetGrid"></div>
+      <div class="whisper-stop-row">
+        <button class="whisper-btn-stop" onclick="crToyStopAll()">⏹ 停止</button>
+      </div>
+      <div class="whisper-log">
+        <div class="whisper-log-area" id="crToyLogArea"></div>
+      </div>
+      <div class="btn-row" style="margin-top:12px">
+        <button class="btn-cancel" onclick="crCloseWhisper()">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 预设编辑器弹窗 -->
+  <div class="toy-overlay" id="crToyEditorOverlay" onclick="if(event.target===this)crToyCloseEditor()">
+    <div class="toy-edit-sheet">
+      <div class="toy-sheet-handle"></div>
+      <div id="crToyEditContent"></div>
+    </div>
+  </div>
+
+  <!-- 转账弹窗 -->
+  <div class="cr-transfer-dialog-overlay" id="crTransferDialogOverlay" onclick="crCloseTransferDialog()">
+    <div class="cr-transfer-dialog" onclick="event.stopPropagation()">
+      <div class="cr-transfer-dialog-title" id="crTransferDialogTitle">转账</div>
+      <div class="cr-transfer-target-wrap">
+        <span class="cr-transfer-target-label">转给</span>
+        <div class="cr-transfer-target-btns">
+          <button class="cr-transfer-target-btn active" id="crTransferTargetConnor" onclick="crSwitchTransferTarget('connor')"></button>
+          <button class="cr-transfer-target-btn" id="crTransferTargetAion" onclick="crSwitchTransferTarget('aion')"></button>
+        </div>
+      </div>
+      <input type="number" id="crTransferAmountInput" class="transfer-amount-input" placeholder="输入金额" step="1">
+      <div class="cr-transfer-dialog-hint">正数=转账，负数=扣除</div>
+      <div class="cr-transfer-dialog-btns">
+        <button class="transfer-btn-cancel" onclick="crCloseTransferDialog()">取消</button>
+        <button class="transfer-btn-confirm" onclick="crConfirmTransfer()">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Connor 钱包悬浮面板 -->
+  <div class="cr-wallet-panel-overlay" id="crWalletPanelOverlay" onclick="crCloseWalletPanel()">
+    <div class="cr-wallet-panel" onclick="event.stopPropagation()">
+      <div class="wallet-panel-header">
+        <span>💰 第二位 AI 的钱包</span>
+        <button class="wallet-close-btn" onclick="crCloseWalletPanel()">✕</button>
+      </div>
+      <div class="wallet-balance-section connor-wallet-gradient">
+        <div class="wallet-balance-label">当前余额</div>
+        <div class="wallet-balance-value" id="crWalletBalanceValue">¥0.00</div>
+      </div>
+      <div class="wallet-tx-header">转账记录</div>
+      <div class="wallet-tx-list" id="crWalletTxList"></div>
+    </div>
+  </div>
+
+  <script src="static/chatroom.js"></script>
+</body>
+</html>
