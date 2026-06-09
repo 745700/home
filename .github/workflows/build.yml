@@ -5,33 +5,20 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   build:
     runs-on: ubuntu-22.04
-    permissions:
-      contents: read
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - run: echo "Checkout OK"
+      - uses: actions/setup-java@v4
         with:
           java-version: 17
           distribution: temurin
-
-      - name: Set up Android SDK
+      - run: java -version && echo "JAVA OK"
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-
-      - name: Set up Gradle
-        uses: gradle/setup-gradle@v4
-
-      - name: Create local.properties
-        run: |
-          echo "sdk.dir=$ANDROID_HOME" > AionApp/local.properties
-
+      - run: echo "ANDROID_HOME=$ANDROID_HOME"
       - name: Build debug APK
         run: |
           cd AionApp
