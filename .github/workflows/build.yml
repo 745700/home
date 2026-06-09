@@ -7,11 +7,10 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     permissions:
       contents: read
     steps:
@@ -36,7 +35,7 @@ jobs:
       - name: Build debug APK
         run: |
           cd AionApp
-          ./gradlew assembleDebug --no-daemon --warning-mode=none 2>&1 | tail -40
+          ./gradlew assembleDebug --no-daemon --warning-mode=none 2>&1 | tail -50
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
