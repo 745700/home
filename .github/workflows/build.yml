@@ -23,12 +23,11 @@ jobs:
           mkdir -p /opt/android-sdk/cmdline-tools
           mv /tmp/android-cmdline/cmdline-tools /opt/android-sdk/cmdline-tools/latest
           export ANDROID_HOME=/opt/android-sdk
-          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
           mkdir -p $ANDROID_HOME/licenses
           echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_HOME/licenses/android-sdk-license
           echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_HOME/licenses/android-sdk-license
           echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" 2>&1 | tail -3
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" 2>&1 | tail -3
 
       - name: Create local.properties
         run: |
@@ -36,50 +35,32 @@ jobs:
           echo "org.gradle.jvmargs=-Xmx2048m" >> AionApp/gradle.properties
 
       - name: Build debug APK
+        id: build
         run: |
           cd AionApp
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --warning-mode=none 2>&1 | tee /tmp/build_output.txt
-          echo "==APK_FOUND=="
-          find . -name "*.apk" -type f
-
-      - name: Upload build log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-log
-          path: /tmp/build_output.txt
-          retention-days: 1
-
-      - name: Upload APK outputs directory
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: aion-app-debug
-          path: AionApp/app/build/outputs/
-          retention-days: 7
-
-      - name: Download artifact
-        uses: dawidd6/action-download-artifact@v3
-        with:
-          name: aion-app-debug
-          path: apk-out
+          ./gradlew assembleDebug --no-daemon --warning-mode=none
+          echo "BUILD_DIR=$(find . -name "build" -type d | grep "^./app/build$" | head -1)" >> $GITHUB_OUTPUT
 
       - name: Find APK
-        id: find_apk
+        id: apk
         run: |
-          APK=$(find apk-out -name "*.apk" | head -1)
-          echo "apk_path=$APK" >> $GITHUB_OUTPUT
-          echo "Found APK: $APK"
+          cd AionApp
+          APK=$(find app/build -name "*.apk" 2>/dev/null | head -1)
+          echo "path=$APK"
+          echo "size=$(stat -c%s "$APK" 2>/dev/null || echo 0)"
+          ls -la "$APK"
 
-      - name: Create GitHub Release
-        if: success()
+      - name: Upload to Release
+        if: success() && steps.apk.outputs.path != ''
         uses: softprops/action-gh-release@v2
         with:
           draft: false
           prerelease: false
-          generate_release_notes: true
+          generate_release_notes: false
           overwrite: true
-          files: ${{ steps.find_apk.outputs.apk_path }}
+          tag_name: v1.0.1-offline
+          name: Offline APK v1.0.1
+          files: AionApp/${{ steps.apk.outputs.path }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
