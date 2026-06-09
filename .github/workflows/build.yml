@@ -5,9 +5,15 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -26,14 +32,11 @@ jobs:
       - name: Create local.properties
         run: |
           echo "sdk.dir=$ANDROID_HOME" > AionApp/local.properties
-          echo "org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8" >> AionApp/gradle.properties
 
       - name: Build debug APK
         run: |
           cd AionApp
-          ./gradlew assembleDebug \
-            --no-daemon \
-            --warning-mode=none 2>&1 | tail -30
+          ./gradlew assembleDebug --no-daemon --warning-mode=none 2>&1 | tail -40
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
