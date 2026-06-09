@@ -35,32 +35,89 @@ jobs:
           echo "org.gradle.jvmargs=-Xmx2048m" >> AionApp/gradle.properties
 
       - name: Build debug APK
-        id: build
         run: |
           cd AionApp
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --warning-mode=none
-          echo "BUILD_DIR=$(find . -name "build" -type d | grep "^./app/build$" | head -1)" >> $GITHUB_OUTPUT
+          ./gradlew assembleDebug --no-daemon --warning-mode=none 2>&1
 
-      - name: Find APK
-        id: apk
+      - name: Find APK path
+        id: find_apk
         run: |
+          set -e
           cd AionApp
-          APK=$(find app/build -name "*.apk" 2>/dev/null | head -1)
-          echo "path=$APK"
-          echo "size=$(stat -c%s "$APK" 2>/dev/null || echo 0)"
-          ls -la "$APK"
+          APK_PATH=$(find app/build/outputs/apk -name "*.apk" | head -1)
+          echo "apk_path=$APK_PATH"
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+          echo "Found: $APK_PATH"
+          ls -lh "$APK_PATH"
 
-      - name: Upload to Release
-        if: success() && steps.apk.outputs.path != ''
-        uses: softprops/action-gh-release@v2
+      - name: Create Release & Upload APK
+        if: success()
+        uses: actions/github-script@v7
         with:
-          draft: false
-          prerelease: false
-          generate_release_notes: false
-          overwrite: true
-          tag_name: v1.0.1-offline
-          name: Offline APK v1.0.1
-          files: AionApp/${{ steps.apk.outputs.path }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            // Find APK from previous step output
+            const apkPath = 'AionApp/' + process.env.APK_PATH;
+            console.log('Reading APK:', apkPath);
+            
+            if (!fs.existsSync(apkPath)) {
+              throw new Error('APK not found at: ' + apkPath);
+            }
+            
+            const apkBuffer = fs.readFileSync(apkPath);
+            const stat = fs.statSync(apkPath);
+            console.log('APK size:', stat.size);
+            
+            const releaseTag = 'v1.0.1-offline';
+            let release;
+            
+            // Get existing release or create new
+            try {
+              release = await github.rest.repos.getReleaseByTag({
+                owner: '745700',
+                repo: 'AionsHome',
+                tag: releaseTag
+              });
+              console.log('Found existing release ID:', release.data.id);
+              
+              // Delete old asset if exists
+              for (const asset of release.data.assets) {
+                if (asset.name === 'app-debug.apk') {
+                  await github.rest.repos.deleteReleaseAsset({
+                    owner: '745700',
+                    repo: 'AionsHome',
+                    asset_id: asset.id
+                  });
+                  console.log('Deleted old asset');
+                }
+              }
+            } catch(e) {
+              release = await github.rest.repos.createRelease({
+                owner: '745700',
+                repo: 'AionsHome',
+                tag_name: releaseTag,
+                name: 'Offline APK v1.0.1',
+                draft: false,
+                prerelease: false
+              });
+              console.log('Created new release ID:', release.data.id);
+            }
+            
+            // Upload APK as base64 (required for binary upload via REST)
+            const base64 = apkBuffer.toString('base64');
+            const upload = await github.rest.repos.uploadReleaseAsset({
+              owner: '745700',
+              repo: 'AionsHome',
+              release_id: release.data.id,
+              name: 'app-debug.apk',
+              data: base64,
+              headers: {
+                'content-type': 'application/vnd.android.package-archive',
+                'content-length': stat.size
+              }
+            });
+            console.log('Uploaded! URL:', upload.data.browser_download_url);
