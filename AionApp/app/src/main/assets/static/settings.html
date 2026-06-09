@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>设置 - Aion</title>
+<link rel="stylesheet" href="/static/common.css">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#ff8359">
+</head>
+<body>
+<div class="sub-page">
+  <div class="top-bar">
+    <button class="back-btn" onclick="location.href='/'">⬅</button>
+    <h2>⚙ 设置</h2>
+  </div>
+  <div class="page-content">
+    <label class="form-label">Gemini API Key</label>
+    <input class="form-input" type="text" id="geminiKeyInput" placeholder="输入 Gemini API Key..." autocomplete="off" style="font-family:monospace">
+    <label class="form-label">Gemini Free Key（哨兵+向量）</label>
+    <input class="form-input" type="text" id="geminiFreeKeyInput" placeholder="留空则复用上方 Key" autocomplete="off" style="font-family:monospace">
+
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.08)">
+      <label class="form-label" style="font-size:15px;color:#ff8359">🛡 前置 & 哨兵模型（自定义中转站）</label>
+      <p style="font-size:12px;color:#aaa;margin:2px 0 10px 0">留空则默认走 Gemini 官方 API + 上方 Free Key</p>
+      <label class="form-label">API 地址（Base URL）</label>
+      <input class="form-input" type="text" id="sentinelBaseUrlInput" placeholder="例：https://api.siliconflow.cn" autocomplete="off" style="font-family:monospace">
+      <label class="form-label">API Key</label>
+      <input class="form-input" type="text" id="sentinelApiKeyInput" placeholder="中转站 / 硅基流动的 API Key" autocomplete="off" style="font-family:monospace">
+      <label class="form-label">模型名称</label>
+      <input class="form-input" type="text" id="sentinelModelInput" placeholder="例：Qwen/Qwen3.6-35B-A3B" autocomplete="off" style="font-family:monospace">
+    </div>
+
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.08)">
+      <label class="form-label" style="font-size:15px;color:#ff8359">📐 向量模型（记忆库 Embedding）</label>
+      <p style="font-size:12px;color:#aaa;margin:2px 0 10px 0">留空则默认走 Gemini embedding-001。切换模型后维度可能不同，需重建向量（记忆库→手动总结）</p>
+      <label class="form-label">API 地址（Base URL）</label>
+      <input class="form-input" type="text" id="embeddingBaseUrlInput" placeholder="例：https://api.siliconflow.cn" autocomplete="off" style="font-family:monospace">
+      <label class="form-label">API Key</label>
+      <input class="form-input" type="text" id="embeddingApiKeyInput" placeholder="留空则复用 Gemini Free Key" autocomplete="off" style="font-family:monospace">
+      <label class="form-label">模型名称</label>
+      <input class="form-input" type="text" id="embeddingModelInput" placeholder="例：Qwen/Qwen3-Embedding-8B" autocomplete="off" style="font-family:monospace">
+    </div>
+
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.08)">
+      <label class="form-label" style="font-size:15px;color:#ff8359">📱 手机屏幕监督</label>
+      <p style="font-size:12px;color:#aaa;margin:2px 0 10px 0">Android App 可开启。MediaProjection 在线时优先用共享屏幕；无障碍开启后，可在共享掉线时继续截普通界面。</p>
+      <p id="phoneScreenStatus" style="font-size:12px;color:#aaa;margin:2px 0 10px 0"></p>
+      <div class="btn-row" style="justify-content:flex-start;margin-top:8px">
+        <button class="btn-save" type="button" onclick="enablePhoneScreenSupervision()">共享授权</button>
+        <button class="btn-save" type="button" onclick="openPhoneAccessibilitySettings()">无障碍设置</button>
+        <button class="btn-save" type="button" onclick="testPhoneAccessibilityCapture()">测试截图</button>
+        <button class="btn-cancel" type="button" onclick="disablePhoneScreenSupervision()">关闭</button>
+      </div>
+    </div>
+
+    <label class="form-label">硅基流动 API Key</label>
+    <input class="form-input" type="text" id="sfKeyInput" placeholder="输入硅基流动 API Key..." autocomplete="off" style="font-family:monospace">
+    <label class="form-label">中转站 API Key</label>
+    <input class="form-input" type="text" id="aiproKeyInput" placeholder="输入中转站 API Key..." autocomplete="off" style="font-family:monospace">
+    <label class="form-label">网易云 MUSIC_U Cookie（VIP 点歌）</label>
+    <input class="form-input" type="text" id="neteaseMusicUInput" placeholder="浏览器 F12 → Cookie → MUSIC_U" autocomplete="off" style="font-family:monospace">
+    <div class="btn-row">
+      <button class="btn-cancel" onclick="location.href='/'">取消</button>
+      <button class="btn-save" onclick="saveSettings()">保存</button>
+    </div>
+  </div>
+</div>
+<script src="static/common.js"></script>
+<script>
+connectCommonWS();
+
+(async function init() {
+  const s = await api("GET", "/api/settings");
+  $("geminiKeyInput").value = s.gemini_key || "";
+  $("geminiFreeKeyInput").value = s.gemini_free_key || "";
+  $("sentinelBaseUrlInput").value = s.sentinel_base_url || "";
+  $("sentinelApiKeyInput").value = s.sentinel_api_key || "";
+  $("sentinelModelInput").value = s.sentinel_model || "";
+  $("embeddingBaseUrlInput").value = s.embedding_base_url || "";
+  $("embeddingApiKeyInput").value = s.embedding_api_key || "";
+  $("embeddingModelInput").value = s.embedding_model || "";
+  $("sfKeyInput").value = s.siliconflow_key || "";
+  $("aiproKeyInput").value = s.aipro_key || "";
+  $("neteaseMusicUInput").value = s.netease_music_u || "";
+  refreshPhoneScreenStatus();
+})();
+
+async function saveSettings() {
+  await api("PUT", "/api/settings", {
+    gemini_key: $("geminiKeyInput").value.trim(),
+    gemini_free_key: $("geminiFreeKeyInput").value.trim(),
+    sentinel_base_url: $("sentinelBaseUrlInput").value.trim(),
+    sentinel_api_key: $("sentinelApiKeyInput").value.trim(),
+    sentinel_model: $("sentinelModelInput").value.trim(),
+    embedding_base_url: $("embeddingBaseUrlInput").value.trim(),
+    embedding_api_key: $("embeddingApiKeyInput").value.trim(),
+    embedding_model: $("embeddingModelInput").value.trim(),
+    siliconflow_key: $("sfKeyInput").value.trim(),
+    aipro_key: $("aiproKeyInput").value.trim(),
+    netease_music_u: $("neteaseMusicUInput").value.trim()
+  });
+  showToast("✅ 已保存");
+}
+
+function enablePhoneScreenSupervision() {
+  const bridge = getPhoneScreenBridge();
+  if (!bridge || !bridge.requestPermission) {
+    showToast("需要在 Android App 里开启");
+    return;
+  }
+  bridge.requestPermission();
+}
+
+function disablePhoneScreenSupervision() {
+  const bridge = getPhoneScreenBridge();
+  if (!bridge || !bridge.stop) {
+    showToast("需要在 Android App 里关闭");
+    return;
+  }
+  bridge.stop();
+  refreshPhoneScreenStatus();
+}
+
+function openPhoneAccessibilitySettings() {
+  const bridge = getPhoneScreenBridge();
+  if (!bridge || !bridge.openAccessibilitySettings) {
+    showToast("需要在 Android App 里开启");
+    return;
+  }
+  bridge.openAccessibilitySettings();
+}
+
+function testPhoneAccessibilityCapture() {
+  const bridge = getPhoneScreenBridge();
+  if (!bridge) {
+    showToast("需要在 Android App 里测试");
+    return;
+  }
+  if (!bridge.testAccessibilityCapture) {
+    showToast("Android App 版本太旧，请安装新版 APK");
+    return;
+  }
+  bridge.testAccessibilityCapture();
+}
+
+function getPhoneScreenBridge() {
+  if (window.AionPhoneScreen) return window.AionPhoneScreen;
+  try {
+    if (window.parent && window.parent !== window && window.parent.AionPhoneScreen) {
+      return window.parent.AionPhoneScreen;
+    }
+  } catch (e) {}
+  return null;
+}
+
+function refreshPhoneScreenStatus() {
+  const el = $("phoneScreenStatus");
+  if (!el) return;
+  const bridge = getPhoneScreenBridge();
+  if (!bridge) {
+    el.textContent = "当前不在 Android App 内，手机截图能力不可用。";
+    return;
+  }
+  let mediaProjection = false;
+  let accessibility = false;
+  try { mediaProjection = !!bridge.isEnabled?.(); } catch (e) {}
+  try { accessibility = !!bridge.isAccessibilityEnabled?.(); } catch (e) {}
+  el.textContent = `共享屏幕：${mediaProjection ? "已开启" : "未开启"} · 无障碍：${accessibility ? "已开启" : "未开启"}`;
+}
+</script>
+</body>
+</html>
