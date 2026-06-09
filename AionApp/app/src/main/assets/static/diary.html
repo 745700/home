@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>日记本</title>
+<link rel="stylesheet" href="/static/common.css">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#ff8359">
+<style>
+.diary-tabs { display:flex; gap:6px; padding:0 0 10px; }
+.diary-tab { flex:1; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:var(--surface2); color:var(--text2); font-size:13px; cursor:pointer; }
+.diary-tab.active { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+.diary-list { flex:1; overflow-y:auto; max-height:calc(100dvh - 132px); padding:2px 0; scrollbar-width:none; }
+.diary-list::-webkit-scrollbar { display:none; }
+.diary-empty { padding:48px 16px; text-align:center; color:var(--text3); font-size:14px; line-height:1.8; }
+.diary-card { position:relative; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:10px; cursor:pointer; }
+.diary-card:hover { box-shadow:0 2px 8px rgba(0,0,0,0.06); }
+.diary-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-right:54px; margin-bottom:6px; }
+.diary-author { font-size:12px; font-weight:700; color:var(--accent); }
+.diary-time { font-size:11px; color:var(--text3); font-family:monospace; }
+.diary-mood { font-size:11px; color:var(--text3); background:var(--surface2); border-radius:999px; padding:2px 8px; }
+.diary-title { flex:1; min-width:0; font-size:16px; color:var(--text); font-weight:700; line-height:1.35; overflow-wrap:anywhere; }
+.diary-content { font-size:14px; color:var(--text); line-height:1.75; white-space:pre-wrap; word-break:break-word; }
+.diary-body { display:none; margin-top:8px; }
+.diary-card.expanded .diary-body { display:block; }
+.diary-source { margin-top:8px; font-size:11px; color:var(--text3); }
+.diary-actions { position:absolute; top:10px; right:10px; display:flex; gap:2px; opacity:0; pointer-events:none; transition:opacity .2s; }
+.diary-card:hover .diary-actions { opacity:1; pointer-events:auto; }
+.diary-action { background:none; border:none; color:var(--text3); font-size:14px; cursor:pointer; padding:4px 5px; border-radius:4px; }
+.diary-action:hover { color:var(--text); background:var(--surface2); }
+.diary-action.danger:hover { color:var(--danger); }
+.diary-load-more { display:block; margin:12px auto; padding:8px 24px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; color:var(--text2); font-size:13px; cursor:pointer; }
+.diary-stats { text-align:center; font-size:12px; color:var(--text3); padding:8px 0; }
+.diary-add-btn { position:absolute; right:14px; top:50%; transform:translateY(-50%); width:32px; height:32px; border:none; border-radius:50%; background:var(--accent); color:#fff; font-size:22px; line-height:30px; cursor:pointer; }
+.diary-add-btn:active { opacity:.8; }
+.diary-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:30; align-items:flex-end; justify-content:center; }
+.diary-overlay.show { display:flex; }
+.diary-modal { width:100%; max-width:520px; background:var(--surface); border-radius:18px 18px 0 0; padding:18px 18px max(18px, env(safe-area-inset-bottom)); box-shadow:0 -8px 28px rgba(0,0,0,.18); transform:translateY(100%); transition:transform .2s; }
+.diary-overlay.show .diary-modal { transform:translateY(0); }
+.diary-modal-title { display:flex; align-items:center; justify-content:space-between; font-size:17px; font-weight:700; color:var(--text); margin-bottom:12px; }
+.diary-modal-close { background:none; border:none; color:var(--text3); font-size:18px; cursor:pointer; }
+.diary-input { width:100%; box-sizing:border-box; border:1px solid var(--border); border-radius:10px; background:var(--bg); color:var(--text); padding:10px 12px; font-size:14px; outline:none; margin-bottom:10px; font-family:inherit; }
+.diary-input:focus { border-color:var(--accent); }
+.diary-textarea { min-height:180px; resize:vertical; line-height:1.7; }
+.diary-save-btn { width:100%; border:none; border-radius:10px; background:var(--accent); color:#fff; padding:12px; font-size:15px; font-weight:700; cursor:pointer; }
+.diary-save-btn:disabled { opacity:.5; cursor:not-allowed; }
+@media (max-width: 768px) {
+  .diary-actions { opacity:1; pointer-events:auto; }
+}
+</style>
+</head>
+<body>
+<div class="sub-page">
+  <div class="top-bar" style="position:relative">
+    <button class="back-btn" onclick="location.href='/'">⬅</button>
+    <h2>📔 日记本</h2>
+    <button class="diary-add-btn" onclick="openDiaryModal()" title="写日记">＋</button>
+  </div>
+  <div class="diary-overlay" id="diaryOverlay" onclick="if(event.target===this)closeDiaryModal()">
+    <div class="diary-modal">
+      <div class="diary-modal-title">
+        <span id="diaryModalTitle">写日记</span>
+        <button class="diary-modal-close" onclick="closeDiaryModal()">✕</button>
+      </div>
+      <input class="diary-input" id="diaryTitleInput" maxlength="80" placeholder="标题（可不填）">
+      <input class="diary-input" id="diaryMoodInput" maxlength="40" placeholder="心情（可不填）">
+      <textarea class="diary-input diary-textarea" id="diaryContentInput" placeholder="写下今天想记录的事..."></textarea>
+      <button class="diary-save-btn" id="diarySaveBtn" onclick="saveDiary()">保存</button>
+    </div>
+  </div>
+  <div class="page-content">
+    <div class="diary-tabs">
+      <button class="diary-tab active" data-author="" onclick="switchAuthor('')">全部</button>
+      <button class="diary-tab" data-author="user" id="userTab" onclick="switchAuthor('user')">我</button>
+      <button class="diary-tab" data-author="aion" id="aionTab" onclick="switchAuthor('aion')">AI</button>
+      <button class="diary-tab" data-author="connor" id="connorTab" onclick="switchAuthor('connor')">Connor</button>
+    </div>
+    <div class="diary-list" id="diaryList">
+      <div class="diary-empty">还没有日记<br>自动总结后，AI 会把心里话写在这里</div>
+    </div>
+  </div>
+</div>
+<script src="static/common.js"></script>
+<script>
+const PAGE_SIZE = 20;
+let currentPage = 1;
+let totalItems = 0;
+let currentAuthor = '';
+let allItems = [];
+let editingDiaryId = null;
+let expandedDiaryIds = new Set();
+let nameMap = { user: '我', aion: 'AI', connor: 'Connor' };
+
+async function initNames() {
+  try {
+    const wb = await api('GET', '/api/worldbook');
+    const crCfg = await api('GET', '/api/chatroom/config');
+    nameMap = {
+      user: wb.user_name || '我',
+      aion: wb.ai_name || 'AI',
+      connor: crCfg.connor_name || 'Connor',
+    };
+    document.getElementById('userTab').textContent = nameMap.user;
+    document.getElementById('aionTab').textContent = nameMap.aion;
+    document.getElementById('connorTab').textContent = nameMap.connor;
+  } catch(e) {}
+}
+
+async function loadDiaries(page = 1, append = false) {
+  try {
+    const authorParam = currentAuthor ? `&author=${encodeURIComponent(currentAuthor)}` : '';
+    const res = await api('GET', `/api/diaries?page=${page}&page_size=${PAGE_SIZE}${authorParam}`);
+    totalItems = res.total;
+    allItems = append ? allItems.concat(res.items) : res.items;
+    currentPage = page;
+    renderList();
+  } catch(e) {
+    console.error('加载日记失败:', e);
+  }
+}
+
+function switchAuthor(author) {
+  currentAuthor = author;
+  document.querySelectorAll('.diary-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.author === author);
+  });
+  loadDiaries(1, false);
+}
+
+function renderList() {
+  const container = document.getElementById('diaryList');
+  if (!allItems.length) {
+    container.innerHTML = '<div class="diary-empty">还没有日记<br>自动总结后，AI 会把心里话写在这里</div>';
+    return;
+  }
+  let html = '';
+  for (const item of allItems) {
+    const id = String(item.id);
+    const idAttr = escHtml(id);
+    const expanded = expandedDiaryIds.has(id);
+    const d = new Date(item.created_at * 1000);
+    const timeStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    const authorName = nameMap[item.author] || item.author;
+    const title = item.title || '无题';
+    const mood = item.mood ? `<span class="diary-mood">${escHtml(item.mood)}</span>` : '';
+    const source = formatSource(item);
+    html += `<div class="diary-card ${expanded ? 'expanded' : ''}" data-id="${idAttr}" tabindex="0" role="button" aria-expanded="${expanded}">
+      <div class="diary-actions">
+        <button class="diary-action diary-edit" data-id="${idAttr}" title="编辑">✎</button>
+        <button class="diary-action diary-delete danger" data-id="${idAttr}" title="删除">✕</button>
+      </div>
+      <div class="diary-head">
+        <span class="diary-author">${escHtml(authorName)}</span>
+        <span class="diary-time">${timeStr}</span>
+        ${mood}
+      </div>
+      <div class="diary-title">${escHtml(title)}</div>
+      <div class="diary-body">
+        <div class="diary-content">${escHtml(item.content)}</div>
+        ${source}
+      </div>
+    </div>`;
+  }
+  html += `<div class="diary-stats">共 ${totalItems} 篇日记</div>`;
+  if (allItems.length < totalItems) {
+    html += `<button class="diary-load-more" onclick="loadMore()">加载更多</button>`;
+  }
+  container.innerHTML = html;
+  bindDiaryListEvents(container);
+}
+
+function bindDiaryListEvents(container) {
+  container.querySelectorAll('.diary-card').forEach(card => {
+    card.addEventListener('click', () => toggleDiary(card.dataset.id));
+    card.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggleDiary(card.dataset.id);
+      }
+    });
+  });
+  container.querySelectorAll('.diary-edit').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      openDiaryModal(btn.dataset.id);
+    });
+  });
+  container.querySelectorAll('.diary-delete').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      deleteDiary(btn.dataset.id);
+    });
+  });
+}
+
+function toggleDiary(id) {
+  id = String(id);
+  if (expandedDiaryIds.has(id)) {
+    expandedDiaryIds.delete(id);
+  } else {
+    expandedDiaryIds.add(id);
+  }
+  renderList();
+}
+
+function upsertDiary(item) {
+  if (currentAuthor && item.author !== currentAuthor) return;
+  const idx = allItems.findIndex(i => String(i.id) === String(item.id));
+  if (idx >= 0) {
+    allItems[idx] = item;
+  } else {
+    allItems.unshift(item);
+    totalItems++;
+  }
+  renderList();
+}
+
+function formatSource(item) {
+  if (!item.source_start_ts || !item.source_end_ts) return '';
+  const start = new Date(item.source_start_ts * 1000);
+  const end = new Date(item.source_end_ts * 1000);
+  const s = `${start.getMonth()+1}/${start.getDate()} ${String(start.getHours()).padStart(2,'0')}:${String(start.getMinutes()).padStart(2,'0')}`;
+  const e = `${end.getMonth()+1}/${end.getDate()} ${String(end.getHours()).padStart(2,'0')}:${String(end.getMinutes()).padStart(2,'0')}`;
+  return `<div class="diary-source">来源：${s} - ${e}</div>`;
+}
+
+function loadMore() {
+  loadDiaries(currentPage + 1, true);
+}
+
+async function deleteDiary(id) {
+  if (!confirm('确定删除这篇日记吗？')) return;
+  try {
+    await api('DELETE', `/api/diaries/${id}`);
+    allItems = allItems.filter(i => String(i.id) !== String(id));
+    expandedDiaryIds.delete(String(id));
+    totalItems--;
+    renderList();
+  } catch(e) {
+    showToast('删除失败');
+  }
+}
+
+function openDiaryModal(id = null) {
+  editingDiaryId = id;
+  const item = id ? allItems.find(i => String(i.id) === String(id)) : null;
+  document.getElementById('diaryModalTitle').textContent = item ? '编辑日记' : '写日记';
+  document.getElementById('diaryTitleInput').value = item ? (item.title || '') : '';
+  document.getElementById('diaryMoodInput').value = item ? (item.mood || '') : '';
+  document.getElementById('diaryContentInput').value = item ? (item.content || '') : '';
+  document.getElementById('diaryOverlay').classList.add('show');
+  setTimeout(() => document.getElementById('diaryContentInput').focus(), 100);
+}
+
+function closeDiaryModal() {
+  document.getElementById('diaryOverlay').classList.remove('show');
+  editingDiaryId = null;
+}
+
+async function saveDiary() {
+  const title = document.getElementById('diaryTitleInput').value.trim();
+  const mood = document.getElementById('diaryMoodInput').value.trim();
+  const content = document.getElementById('diaryContentInput').value.trim();
+  if (!content) {
+    showToast('先写点内容吧');
+    return;
+  }
+  const btn = document.getElementById('diarySaveBtn');
+  btn.disabled = true;
+  const wasEditing = !!editingDiaryId;
+  try {
+    const method = editingDiaryId ? 'PUT' : 'POST';
+    const url = editingDiaryId ? `/api/diaries/${editingDiaryId}` : '/api/diaries';
+    const item = await api(method, url, { title, mood, content });
+    if (item.error) {
+      showToast(item.error);
+      return;
+    }
+    closeDiaryModal();
+    if (!wasEditing && currentAuthor !== 'user') {
+      switchAuthor('user');
+    } else {
+      upsertDiary(item);
+    }
+  } catch(e) {
+    showToast('保存失败');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function connectDiaryWS() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const ws = new WebSocket(`${proto}//${location.host}/ws`);
+  ws.onmessage = e => {
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'diary_new' && msg.data) {
+        upsertDiary(msg.data);
+      } else if (msg.type === 'diary_updated' && msg.data) {
+        const idx = allItems.findIndex(i => String(i.id) === String(msg.data.id));
+        if (idx >= 0) {
+          allItems[idx] = msg.data;
+          renderList();
+        }
+      }
+    } catch {}
+  };
+  ws.onclose = () => setTimeout(connectDiaryWS, 1500);
+}
+
+(async function init() {
+  await initNames();
+  await loadDiaries();
+  connectDiaryWS();
+})();
+</script>
+</body>
+</html>
