@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>朋友圈 - Aion</title>
-<link rel="stylesheet" href="/static/common.css">
+<link rel="stylesheet" href="common.css">
 <link rel="manifest" href="manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#ff8359">
@@ -238,7 +238,7 @@
 <body>
 <div class="sub-page">
   <div class="top-bar" style="position:relative">
-    <button class="back-btn" onclick="location.href='/'">⬅</button>
+    <button class="back-btn" onclick="location.href=''">⬅</button>
     <h2>📱 朋友圈</h2>
     <button class="publish-fab" onclick="openPublishModal()" title="发朋友圈">＋</button>
   </div>
@@ -337,9 +337,9 @@ function getAuthorName(author) {
 }
 
 function getAvatarUrl(author) {
-  if (author === 'user') return '/public/UserIcon.png';
-  if (author === 'aion') return '/public/AIIcon.png';
-  return '/public/codexicon.png';
+  if (author === 'user') return 'public/UserIcon.png';
+  if (author === 'aion') return 'public/AIIcon.png';
+  return 'public/codexicon.png';
 }
 
 function relativeTime(ts) {
@@ -496,7 +496,7 @@ function renderMomentCard(m) {
   return `<div class="moment-card" id="m_${m.id}">
     <button class="moment-del" onclick="deleteMoment('${m.id}')" title="删除">✕</button>
     <div class="moment-header">
-      <img class="moment-avatar" src="${avatarUrl}" alt="${escapeHtml(authorName)}" onerror="this.src='/public/AIIcon.png'">
+      <img class="moment-avatar" src="${avatarUrl}" alt="${escapeHtml(authorName)}" onerror="this.src='public/AIIcon.png'">
       <div class="moment-meta">
         <div class="moment-author">${escapeHtml(authorName)}</div>
         <div class="moment-time">${timeStr}</div>
