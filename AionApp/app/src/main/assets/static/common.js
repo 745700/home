@@ -66,19 +66,25 @@ function getSolidVisualColor(foregroundValue, backgroundValue) {
   });
 }
 
-// 在 iframe 子页面浮层中时，返回按钮改为关闭浮层回到聊天页
+// 在 iframe 子页面浮层中时，返回按钮改为回到 Home 页面
 if (window.parent !== window) {
   document.addEventListener('DOMContentLoaded', () => {
     const backBtn = document.querySelector('.top-bar .back-btn');
-    if (backBtn) backBtn.onclick = () => window.parent.closeSubPage();
+    if (backBtn) backBtn.onclick = () => window.parent.navigateToHome();
   });
 }
 
+// ── localStorage-backed API for settings pages ──
 async function api(method, url, body) {
-  const opts = { method, headers: {"Content-Type": "application/json"} };
-  if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(url, opts);
-  return res.json();
+  const key = 'aion_' + url.replace('/api/', '').replace(/\//g, '_');
+  if (method === 'GET') {
+    return JSON.parse(localStorage.getItem(key) || 'null') || {};
+  }
+  if (method === 'PUT') {
+    localStorage.setItem(key, JSON.stringify(body));
+    return body;
+  }
+  return {};
 }
 
 function escHtml(s) {
@@ -107,12 +113,8 @@ function showToast(msg) {
 let _commonWs = null;
 let _wsHandlers = {};
 
-function connectCommonWS(extraHandler) {
-  const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  _commonWs = new WebSocket(`${proto}//${location.host}/ws`);
-  _commonWs.onmessage = e => {
-    const msg = JSON.parse(e.data);
-    // 闹铃弹窗 — 全局
+// WebSocket disabled in pure frontend mode
+function connectCommonWS() { /* noop */ }
     if (msg.type === "schedule_alarm") {
       showAlarmPopup(msg.data);
       return;
@@ -126,7 +128,7 @@ function connectCommonWS(extraHandler) {
     }
     // 礼物通知 — 全局
     if (msg.type === "gift_pending") {
-      _showGiftPopup(msg.data);
+      if (_shouldShowCommonGiftPopup()) _showGiftPopup(msg.data);
       return;
     }
     // 页面自定义处理
@@ -188,9 +190,21 @@ if ('Notification' in window && Notification.permission === 'default') {
 /* ── 礼物弹窗系统 ── */
 let _giftQueue = [];
 let _giftShowing = false;
+let _giftKnownIds = new Set(JSON.parse(localStorage.getItem('aion_gift_known_ids') || '[]'));
+
+function _shouldShowCommonGiftPopup() {
+  return document.body?.dataset?.giftPopup === 'enabled';
+}
+
+function _rememberGiftSeen(giftId) {
+  if (!giftId) return;
+  _giftKnownIds.add(giftId);
+  localStorage.setItem('aion_gift_known_ids', JSON.stringify([..._giftKnownIds].slice(-200)));
+}
 
 // 页面加载时检查未领取的礼物
 document.addEventListener('DOMContentLoaded', async () => {
+  if (!_shouldShowCommonGiftPopup()) return;
   try {
     const res = await fetch('/api/gift/pending');
     const data = await res.json();
@@ -201,6 +215,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function _showGiftPopup(gift) {
+  if (!gift || !gift.id || _giftKnownIds.has(gift.id) || _giftQueue.some(g => g.id === gift.id)) return;
   _giftQueue.push(gift);
   if (!_giftShowing) _presentNextGift();
 }
@@ -270,6 +285,11 @@ function _openGiftBox() {
   const wrap = document.getElementById('giftBoxWrap');
   const reveal = document.getElementById('giftReveal');
   if (!lid || !wrap || !reveal) return;
+  const gift = _giftQueue[0];
+  if (gift?.id) {
+    _rememberGiftSeen(gift.id);
+    fetch(`/api/gift/${gift.id}/receive`, { method: 'POST' }).catch(() => {});
+  }
 
   // 播放开礼物音效
   new Audio('/public/打开礼物.mp3').play().catch(() => {});
@@ -325,6 +345,7 @@ function _showGiftMessage() {
 }
 
 async function _receiveGift(giftId) {
+  _rememberGiftSeen(giftId);
   try {
     await fetch(`/api/gift/${giftId}/receive`, { method: 'POST' });
   } catch(e) {}
