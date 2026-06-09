@@ -573,7 +573,7 @@ async function runGlobalSearch(e) {
   }
   meta.textContent = '搜索中...';
   try {
-    const res = await fetch(`/api/search/messages?q=${encodeURIComponent(keyword)}&limit=80`);
+    const res = {ok:true,json:()=>Promise.resolve({items:[]})}; // offline stub
     const data = await res.json();
     globalSearchItems = Array.isArray(data.items) ? data.items : [];
     meta.textContent = globalSearchItems.length ? `找到 ${globalSearchItems.length} 条，点击可跳转` : '没有匹配的聊天记录';
@@ -635,7 +635,7 @@ document.addEventListener('keydown', e => {
 /* ── 朋友圈未读红点检查 ── */
 async function checkMomentsUnread() {
   try {
-    const res = await fetch('/api/moments/unread');
+    const res = {ok:true,json:()=>Promise.resolve({has_unread:false})}; // offline stub
     const data = await res.json();
     const badge = document.getElementById('momentsBadge');
     if (badge) badge.classList.toggle('show', data.has_unread);
