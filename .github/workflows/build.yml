@@ -36,16 +36,18 @@ jobs:
         run: |
           cd AionApp
           chmod +x ./gradlew
-          ./gradlew assembleDebug --no-daemon 2>&1 | tail -50
+          ./gradlew assembleDebug --no-daemon 2>&1 | tail -20
+        env:
+          TERM: dumb
 
       - name: Upload to Release
-        uses: softprops/action-gh-release@v2
+        uses: ncipollo/release-action@v1
         with:
-          tag_name: v1.0.2-offline
+          tag: v1.0.2-offline
           name: Offline APK v1.0.2
-          body: "离线版 APK，包含所有修复"
-          files: AionApp/app/build/outputs/apk/debug/*.apk
+          body: "离线版 APK v1.0.2 - 包含所有离线修复"
+          artifacts: "AionApp/app/build/outputs/apk/debug/*.apk"
+          artifactContentType: application/vnd.android.package-archive
           draft: true
           prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          allowEmptyCommits: true
