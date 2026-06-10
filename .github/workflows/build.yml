@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      release_id:
+        description: 'Existing release ID to upload to (optional)'
+        required: false
+        type: string
 
 concurrency:
   group: build-apk
@@ -49,22 +54,39 @@ jobs:
 
       - name: Create Release
         id: create_release
+        if: inputs.release_id == ''
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: v1.0.2-offline
-          release_name: Offline APK v1.0.2
-          body: "离线版 APK v1.0.2"
+          tag_name: v${{ github.run_number }}-offline
+          release_name: Offline APK v${{ github.run_number }}
+          body: "离线版 APK v${{ github.run_number }}"
           draft: true
           prerelease: false
 
       - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: AionApp/app/build/outputs/apk/debug/app-debug.apk
-          asset_name: app-debug.apk
-          asset_content_type: application/vnd.android.package-archive
+        run: |
+          if [ -n "${{ inputs.release_id }}" ]; then
+            # Upload to existing release
+            RELEASE_JSON=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/${{ inputs.release_id }}")
+            UPLOAD_URL=$(echo "$RELEASE_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['upload_url'].replace('{?name,label}',''))")
+            echo "Uploading to existing release ID ${{ inputs.release_id }}"
+            echo "Upload URL: $UPLOAD_URL"
+            curl -s -X POST \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Content-Type: application/vnd.android.package-archive" \
+              -T AionApp/app/build/outputs/apk/debug/app-debug.apk \
+              "$UPLOAD_URL?name=app-debug.apk"
+            echo "Done"
+          else
+            # Upload via workflow output
+            curl -s -X POST \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Content-Type: application/vnd.android.package-archive" \
+              -T AionApp/app/build/outputs/apk/debug/app-debug.apk \
+              "${{ steps.create_release.outputs.upload_url }}?name=app-debug.apk"
+          fi
