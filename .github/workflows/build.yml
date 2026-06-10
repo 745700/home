@@ -38,13 +38,33 @@ jobs:
         env:
           TERM: dumb
 
-      - name: Upload to Release
-        uses: softprops/action-gh-release@v2
+      - name: List APK files
+        run: |
+          echo "=== find result ==="
+          find . -name "*.apk" -type f 2>/dev/null
+          echo "=== ls result ==="
+          ls -lh AionApp/app/build/outputs/apk/debug/ 2>/dev/null || echo "dir not found"
+          echo "=== android build output ==="
+          ls -lh AionApp/app/build/outputs/ 2>/dev/null || echo "outputs dir not found"
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: v1.0.2-offline
-          name: Offline APK v1.0.2
-          body: "离线版 APK v1.0.2 - 包含所有离线修复"
-          files: AionApp/app/build/outputs/apk/debug/*.apk
+          release_name: Offline APK v1.0.2
+          body: "离线版 APK v1.0.2"
           draft: true
           prerelease: false
-          allow_duplicates: false
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: AionApp/app/build/outputs/apk/debug/app-debug.apk
+          asset_name: app-debug.apk
+          asset_content_type: application/vnd.android.package-archive
