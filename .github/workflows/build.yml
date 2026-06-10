@@ -15,8 +15,6 @@ permissions:
 jobs:
   build:
     runs-on: macos-14
-    permissions:
-      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -40,14 +38,20 @@ jobs:
         env:
           TERM: dumb
 
-      - name: Upload to Release
-        uses: ncipollo/release-action@v1
-        with:
-          tag: v1.0.2-offline
-          name: Offline APK v1.0.2
-          body: "离线版 APK v1.0.2 - 包含所有离线修复（v2 action）"
-          artifacts: "AionApp/app/build/outputs/apk/debug/*.apk"
-          artifactContentType: application/vnd.android.package-archive
-          draft: true
-          prerelease: false
-          allowEmptyCommits: true
+      - name: Create Release via API
+        run: |
+          APK_PATH=$(find AionApp -name "*.apk" | head -1)
+          echo "APK: $APK_PATH"
+          APK_SIZE=$(wc -c < "$APK_PATH")
+          echo "APK_SIZE=$APK_SIZE"
+
+          # Create release via GitHub API
+          TAG_NAME="v1.0.2-offline"
+          curl -s -X POST             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}"             -H "Accept: application/vnd.github+json"             -H "Content-Type: application/json"             https://api.github.com/repos/${{ github.repository }}/releases             -d "{\"tag_name\":\"$TAG_NAME\",\"name\":\"Offline APK v1.0.2\",\"body\":\"离线版 APK v1.0.2\",\"draft\":true,\"prerelease\":false}"             > /tmp/release.json
+          cat /tmp/release.json | python3 -c "import sys,json; d=json.load(sys.stdin); print('Release ID:', d.get('id','ERROR'), d.get('message',''))"
+          RELEASE_ID=$(cat /tmp/release.json | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))")
+
+          # Upload asset
+          UPLOAD_URL="https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=app-debug.apk"
+          curl -s -X POST             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}"             -H "Content-Type: application/vnd.android.package-archive"             -H "Content-Length: $APK_SIZE"             --data-binary "@$APK_PATH"             "$UPLOAD_URL" > /tmp/upload.json
+          cat /tmp/upload.json | python3 -c "import sys,json; d=json.load(sys.stdin); print('Upload:', d.get('browser_download_url','ERROR')[:80], d.get('message',''))"
