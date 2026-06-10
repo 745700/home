@@ -27,9 +27,10 @@ jobs:
           distribution: temurin
 
       - name: Setup Android SDK
-        run: |
-          brew install --cask android-sdk || true
-          echo "sdk.dir=$ANDROID_HOME" > AionApp/local.properties
+        run: brew install --cask android-sdk || true
+
+      - name: Create local.properties
+        run: echo "sdk.dir=$ANDROID_HOME" > AionApp/local.properties
 
       - name: Build debug APK
         run: |
@@ -37,9 +38,14 @@ jobs:
           chmod +x ./gradlew
           ./gradlew assembleDebug --no-daemon 2>&1 | tail -50
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: aion-app-debug
-          path: AionApp/app/build/outputs/apk/debug/*.apk
-          retention-days: 7
+          tag_name: v1.0.2-offline
+          name: Offline APK v1.0.2
+          body: "离线版 APK，包含所有修复"
+          files: AionApp/app/build/outputs/apk/debug/*.apk
+          draft: true
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
