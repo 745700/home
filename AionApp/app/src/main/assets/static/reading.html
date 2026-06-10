@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>陪伴阅读</title>
-<link rel="stylesheet" href="/static/common.css">
+<link rel="stylesheet" href="common.css">
 <style>
 /* ── 书库视图 ── */
 .library-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
@@ -666,7 +666,7 @@
   <div id="tocList"></div>
 </div>
 
-<script src="static/common.js"></script>
+<script src="common.js"></script>
 <script>
 /* ======================================================
    陪伴阅读 — Phase 1：书库 + 阅读器 + 进度保存
@@ -870,10 +870,10 @@ function renderChapter(data) {
     const marker = `data-p="${pIdx}"`;
     let bubbles = '';
     if (annotations[pIdx]) {
-      bubbles += `<span class="anno-bubble" onclick="showAnnotation(${pIdx},'aion')" title="${escHtml(aiName)}的批注"><img src="/public/AIIcon.png" alt=""></span>`;
+      bubbles += `<span class="anno-bubble" onclick="showAnnotation(${pIdx},'aion')" title="${escHtml(aiName)}的批注"><img src="../public/AIIcon.png" alt=""></span>`;
     }
     if (connorAnnotations[pIdx]) {
-      bubbles += `<span class="anno-bubble connor" onclick="showAnnotation(${pIdx},'connor')" title="${escHtml(connorName)}的批注"><img src="/public/codexicon.png" alt=""></span>`;
+      bubbles += `<span class="anno-bubble connor" onclick="showAnnotation(${pIdx},'connor')" title="${escHtml(connorName)}的批注"><img src="../public/codexicon.png" alt=""></span>`;
     }
     if (bubbles) {
       html = html.replace(
@@ -1617,7 +1617,7 @@ async function doSendInPanel(msgContent, skipUserBubble, highlightMeta) {
     const aiRow = document.createElement('div');
     aiRow.className = 'rc-row assistant';
     aiRow.innerHTML = `
-      <img class="rc-avatar" src="/public/AIIcon.png" alt="">
+      <img class="rc-avatar" src="../public/AIIcon.png" alt="">
       <div class="rc-body">
         <div class="rc-name">${escHtml(aiName)}</div>
         <div class="rc-bubble thinking">正在思考...</div>
@@ -1642,7 +1642,7 @@ async function doSendInPanel(msgContent, skipUserBubble, highlightMeta) {
     const cRow = document.createElement('div');
     cRow.className = 'rc-row connor';
     cRow.innerHTML = `
-      <img class="rc-avatar" src="/public/codexicon.png" alt="">
+      <img class="rc-avatar" src="../public/codexicon.png" alt="">
       <div class="rc-body">
         <div class="rc-name">${escHtml(connorName)}</div>
         <div class="rc-bubble thinking">正在思考...</div>
@@ -1669,7 +1669,7 @@ async function doSendInPanel(msgContent, skipUserBubble, highlightMeta) {
     const aRow = document.createElement('div');
     aRow.className = 'rc-row assistant';
     aRow.innerHTML = `
-      <img class="rc-avatar" src="/public/AIIcon.png" alt="">
+      <img class="rc-avatar" src="../public/AIIcon.png" alt="">
       <div class="rc-body">
         <div class="rc-name">${escHtml(aiName)}</div>
         <div class="rc-bubble thinking">正在思考...</div>
@@ -1680,7 +1680,7 @@ async function doSendInPanel(msgContent, skipUserBubble, highlightMeta) {
     const cRow = document.createElement('div');
     cRow.className = 'rc-row connor';
     cRow.innerHTML = `
-      <img class="rc-avatar" src="/public/codexicon.png" alt="">
+      <img class="rc-avatar" src="../public/codexicon.png" alt="">
       <div class="rc-body">
         <div class="rc-name">${escHtml(connorName)}</div>
         <div class="rc-bubble thinking">等待中...</div>
