@@ -5,12 +5,16 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: build-apk
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: macos-14
     permissions:
       contents: read
     steps:
@@ -22,20 +26,16 @@ jobs:
           java-version: 17
           distribution: temurin
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Set up Gradle
-        uses: gradle/setup-gradle@v4
-
-      - name: Create local.properties
+      - name: Setup Android SDK
         run: |
+          brew install --cask android-sdk || true
           echo "sdk.dir=$ANDROID_HOME" > AionApp/local.properties
 
       - name: Build debug APK
         run: |
           cd AionApp
-          ./gradlew assembleDebug --no-daemon --warning-mode=none 2>&1 | tail -50
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon 2>&1 | tail -50
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
