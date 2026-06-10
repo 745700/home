@@ -45,7 +45,7 @@ jobs:
         with:
           tag: v1.0.2-offline
           name: Offline APK v1.0.2
-          body: "离线版 APK v1.0.2 - 包含所有离线修复"
+          body: "离线版 APK v1.0.2 - 包含所有离线修复（v2 action）"
           artifacts: "AionApp/app/build/outputs/apk/debug/*.apk"
           artifactContentType: application/vnd.android.package-archive
           draft: true
