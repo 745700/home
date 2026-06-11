@@ -635,6 +635,6 @@ async function checkMomentsUnread() {
 checkMomentsUnread();
 setInterval(checkMomentsUnread, 60000);
 </script>
-<script>if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
+<script>try { if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js'); } catch(e) {}</script>
 </body>
 </html>
