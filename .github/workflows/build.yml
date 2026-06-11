@@ -39,7 +39,7 @@ jobs:
         run: |
           cd AionApp
           chmod +x ./gradlew
-          ./gradlew assembleDebug --no-daemon 2>&1 | tail -5
+          ./gradlew assembleDebug --no-daemon --rerun-tasks 2>&1 | tail -10
         env:
           TERM: dumb
 
