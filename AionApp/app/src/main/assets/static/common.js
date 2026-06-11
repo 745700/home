@@ -1,3 +1,19 @@
+/* ── 全局错误捕获（诊断子页面崩溃） ── */
+window.addEventListener('error', e => {
+  const el = document.createElement('div');
+  el.style = 'position:fixed;top:0;left:0;right:0;z-index:999999;background:#d32f2f;color:#fff;padding:12px;font-size:13px;word-break:break-all';
+  el.textContent = '[JS Error] ' + e.message + ' @ ' + (e.filename||'').split('/').pop() + ':' + e.lineno;
+  document.body ? document.body.appendChild(el) : document.documentElement.appendChild(el);
+  console.error('[诊断]', e);
+});
+window.addEventListener('unhandledrejection', e => {
+  const el = document.createElement('div');
+  el.style = 'position:fixed;top:40px;left:0;right:0;z-index:999999;background:#e65100;color:#fff;padding:12px;font-size:13px;word-break:break-all';
+  el.textContent = '[Promise Rejection] ' + (e.reason && (e.reason.message || String(e.reason)));
+  document.body ? document.body.appendChild(el) : document.documentElement.appendChild(el);
+  console.error('[Promise诊断]', e);
+});
+
 /* ── Aion Common JS — 共享工具函数 ── */
 
 const $ = id => document.getElementById(id);
@@ -206,8 +222,9 @@ function _rememberGiftSeen(giftId) {
 document.addEventListener('DOMContentLoaded', async () => {
   if (!_shouldShowCommonGiftPopup()) return;
   try {
-    const res = await fetch('/api/gift/pending');
-    const data = await res.json();
+    const res = await fetch('/api/gift/pending').catch(e => null);
+    if (!res) return;
+    const data = await res.json().catch(() => ({}));
     if (data.ok && data.gifts && data.gifts.length > 0) {
       data.gifts.forEach(g => _showGiftPopup(g));
     }
