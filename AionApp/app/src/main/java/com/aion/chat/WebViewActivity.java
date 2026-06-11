@@ -278,8 +278,13 @@ public class WebViewActivity extends AppCompatActivity {
                     return true;
                 }
                 // 站内导航留在 WebView，外部链接用浏览器打开
+                String urlScheme = request.getUrl().getScheme();
                 String urlHost = request.getUrl().getHost();
-                if (urlHost != null && (urlHost.contains("192.168.") || urlHost.contains("100.117.") || urlHost.contains("localhost") || urlHost.contains("127.0.0.1"))) {
+                // 相对路径（无 host）或已知本地/内网 host，留在 WebView
+                if (urlHost == null || urlHost.isEmpty() ||
+                        urlHost.contains("192.168.") || urlHost.contains("100.117.") ||
+                        urlHost.contains("localhost") || urlHost.contains("127.0.0.1") ||
+                        "file".equals(urlScheme)) {
                     return false;
                 }
                 startActivity(new Intent(Intent.ACTION_VIEW, request.getUrl()));
