@@ -316,6 +316,12 @@ public class WebViewActivity extends AppCompatActivity {
                     if (sub.endsWith(".js") || sub.endsWith(".css") || sub.equals("manifest.json") || sub.equals("sw.js")) {
                         assetPath = "static/" + sub;
                     }
+                } else if (path.equals("/manifest.json")) {
+                    // PWA manifest
+                    assetPath = "static/manifest.json";
+                } else if (path.equals("/sw.js")) {
+                    // ServiceWorker
+                    assetPath = "static/sw.js";
                 } else {
                     // 路由路径映射（iframe 直接访问 /chat、/settings 等，需映射到对应 HTML 文件）
                     java.util.Map<String, String> routeMap = new java.util.HashMap<>();
