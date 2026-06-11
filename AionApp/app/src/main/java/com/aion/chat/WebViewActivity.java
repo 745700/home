@@ -285,6 +285,38 @@ public class WebViewActivity extends AppCompatActivity {
                         urlHost.contains("192.168.") || urlHost.contains("100.117.") ||
                         urlHost.contains("localhost") || urlHost.contains("127.0.0.1") ||
                         "file".equals(urlScheme)) {
+                    // 路由路径重定向：/settings → 完整路径，让相对路径正确解析
+                    String routePath = request.getUrl().getPath();
+                    if (routePath != null && !routePath.isEmpty() && !routePath.equals("/")) {
+                        java.util.Map<String, String> routeMap = new java.util.HashMap<>();
+                        routeMap.put("/chat", "chat.html");
+                        routeMap.put("/settings", "settings.html");
+                        routeMap.put("/moments", "moments.html");
+                        routeMap.put("/memory", "memory.html");
+                        routeMap.put("/location", "location.html");
+                        routeMap.put("/schedule", "schedule.html");
+                        routeMap.put("/ghost-forest", "ghost-forest.html");
+                        routeMap.put("/chatroom", "chatroom.html");
+                        routeMap.put("/theater", "theater.html");
+                        routeMap.put("/worldbook", "worldbook.html");
+                        routeMap.put("/diary", "diary.html");
+                        routeMap.put("/health", "health.html");
+                        routeMap.put("/reading", "reading.html");
+                        routeMap.put("/gift", "gift.html");
+                        routeMap.put("/fund", "fund.html");
+                        routeMap.put("/playground", "playground.html");
+                        routeMap.put("/doudizhu", "doudizhu.html");
+                        routeMap.put("/seeky", "seeky.html");
+                        routeMap.put("/activity-logs", "activity-logs.html");
+                        routeMap.put("/monitor-logs", "monitor-logs.html");
+                        routeMap.put("/camera", "camera.html");
+                        routeMap.put("/", "home.html");
+                        if (routeMap.containsKey(routePath)) {
+                            String redirectUrl = "file:///android_asset/static/" + routeMap.get(routePath);
+                            view.loadUrl(redirectUrl);
+                            return true;
+                        }
+                    }
                     return false;
                 }
                 startActivity(new Intent(Intent.ACTION_VIEW, request.getUrl()));
