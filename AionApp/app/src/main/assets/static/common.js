@@ -1,4 +1,20 @@
 /* ── 全局错误捕获（诊断子页面崩溃） ── */
+window.addEventListener('error', function(e) {
+  var el = document.createElement('div');
+  el.style = 'position:fixed;top:0;left:0;right:0;z-index:999999;background:#d32f2f;color:#fff;padding:12px;font-size:13px;word-break:break-all;max-height:200px;overflow:auto';
+  el.textContent = '[JS Error] ' + (e.message||'') + ' @ ' + (e.filename||'').split('/').pop() + ':' + (e.lineno||'');
+  (document.body||document.documentElement).appendChild(el);
+  console.error('[诊断]', e.message, e.filename, e.lineno);
+});
+window.addEventListener('unhandledrejection', function(e) {
+  var el = document.createElement('div');
+  el.style = 'position:fixed;top:44px;left:0;right:0;z-index:999999;background:#bf360c;color:#fff;padding:12px;font-size:13px;word-break:break-all;max-height:200px;overflow:auto';
+  el.textContent = '[Promise Rejection] ' + (e.reason && (e.reason.message || String(e.reason)));
+  (document.body||document.documentElement).appendChild(el);
+  console.error('[Promise诊断]', e.reason);
+});
+
+/* ── 全局错误捕获（诊断子页面崩溃） ── */
 window.addEventListener('error', e => {
   const el = document.createElement('div');
   el.style = 'position:fixed;top:0;left:0;right:0;z-index:999999;background:#d32f2f;color:#fff;padding:12px;font-size:13px;word-break:break-all';
