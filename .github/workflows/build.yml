@@ -65,28 +65,12 @@ jobs:
           draft: true
           prerelease: false
 
-      - name: Upload Release Asset
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [ -n "${{ inputs.release_id }}" ]; then
-            # Upload to existing release
-            RELEASE_JSON=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-              "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/${{ inputs.release_id }}")
-            UPLOAD_URL=$(echo "$RELEASE_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['upload_url'].replace('{?name,label}',''))")
-            echo "Uploading to existing release ID ${{ inputs.release_id }}"
-            echo "Upload URL: $UPLOAD_URL"
-            curl -s -X POST \
-              -H "Authorization: Bearer $GITHUB_TOKEN" \
-              -H "Content-Type: application/vnd.android.package-archive" \
-              -T AionApp/app/build/outputs/apk/debug/app-debug.apk \
-              "$UPLOAD_URL?name=app-debug.apk"
-            echo "Done"
-          else
-            # Upload via workflow output
-            curl -s -X POST \
-              -H "Authorization: Bearer $GITHUB_TOKEN" \
-              -H "Content-Type: application/vnd.android.package-archive" \
-              -T AionApp/app/build/outputs/apk/debug/app-debug.apk \
-              "${{ steps.create_release.outputs.upload_url }}?name=app-debug.apk"
-          fi
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}-offline
+          name: Offline APK v${{ github.run_number }}
+          body: "离线版 APK v${{ github.run_number }}"
+          draft: false
+          prerelease: false
+          files: AionApp/app/build/outputs/apk/debug/app-debug.apk
