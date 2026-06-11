@@ -277,6 +277,38 @@ public class WebViewActivity extends AppCompatActivity {
                     }
                     return true;
                 }
+                // ── 路由路径重定向 ──
+                String path = request.getUrl().getPath();
+                if (path != null && !path.isEmpty() && !path.equals("/")) {
+                    java.util.Map<String, String> routeMap = new java.util.HashMap<>();
+                    routeMap.put("/chat", "chat.html");
+                    routeMap.put("/settings", "settings.html");
+                    routeMap.put("/moments", "moments.html");
+                    routeMap.put("/memory", "memory.html");
+                    routeMap.put("/location", "location.html");
+                    routeMap.put("/schedule", "schedule.html");
+                    routeMap.put("/ghost-forest", "ghost-forest.html");
+                    routeMap.put("/chatroom", "chatroom.html");
+                    routeMap.put("/theater", "theater.html");
+                    routeMap.put("/worldbook", "worldbook.html");
+                    routeMap.put("/diary", "diary.html");
+                    routeMap.put("/health", "health.html");
+                    routeMap.put("/reading", "reading.html");
+                    routeMap.put("/gift", "gift.html");
+                    routeMap.put("/fund", "fund.html");
+                    routeMap.put("/playground", "playground.html");
+                    routeMap.put("/doudizhu", "doudizhu.html");
+                    routeMap.put("/seeky", "seeky.html");
+                    routeMap.put("/activity-logs", "activity-logs.html");
+                    routeMap.put("/monitor-logs", "monitor-logs.html");
+                    routeMap.put("/camera", "camera.html");
+                    routeMap.put("/", "home.html");
+                    if (routeMap.containsKey(path)) {
+                        view.loadUrl("file:///android_asset/static/" + routeMap.get(path));
+                        return true;
+                    }
+                }
+
                 // 站内导航留在 WebView，外部链接用浏览器打开
                 String urlScheme = request.getUrl().getScheme();
                 String urlHost = request.getUrl().getHost();
