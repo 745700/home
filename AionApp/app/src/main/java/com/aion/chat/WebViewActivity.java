@@ -311,6 +311,34 @@ public class WebViewActivity extends AppCompatActivity {
                     if (sub.endsWith(".js") || sub.endsWith(".css") || sub.equals("manifest.json") || sub.equals("sw.js")) {
                         assetPath = "static/" + sub;
                     }
+                } else {
+                    // 路由路径映射（iframe 直接访问 /chat、/settings 等，需映射到对应 HTML 文件）
+                    java.util.Map<String, String> routeMap = new java.util.HashMap<>();
+                    routeMap.put("/chat", "chat.html");
+                    routeMap.put("/settings", "settings.html");
+                    routeMap.put("/moments", "moments.html");
+                    routeMap.put("/memory", "memory.html");
+                    routeMap.put("/location", "location.html");
+                    routeMap.put("/schedule", "schedule.html");
+                    routeMap.put("/ghost-forest", "ghost-forest.html");
+                    routeMap.put("/chatroom", "chatroom.html");
+                    routeMap.put("/theater", "theater.html");
+                    routeMap.put("/worldbook", "worldbook.html");
+                    routeMap.put("/diary", "diary.html");
+                    routeMap.put("/health", "health.html");
+                    routeMap.put("/reading", "reading.html");
+                    routeMap.put("/gift", "gift.html");
+                    routeMap.put("/fund", "fund.html");
+                    routeMap.put("/playground", "playground.html");
+                    routeMap.put("/doudizhu", "doudizhu.html");
+                    routeMap.put("/seeky", "seeky.html");
+                    routeMap.put("/activity-logs", "activity-logs.html");
+                    routeMap.put("/monitor-logs", "monitor-logs.html");
+                    routeMap.put("/camera", "camera.html");
+                    routeMap.put("/", "home.html");
+                    if (routeMap.containsKey(path)) {
+                        assetPath = "static/" + routeMap.get(path);
+                    }
                 }
 
                 if (assetPath != null) {
