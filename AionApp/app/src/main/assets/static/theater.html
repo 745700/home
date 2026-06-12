@@ -211,7 +211,7 @@ body { font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-se
   <!-- 侧栏 -->
   <div class="sidebar" id="sidebar">
     <div class="sidebar-header">
-      <button class="home-btn" onclick="location.href='/'">🏠</button>
+      <button class="home-btn" onclick="try{window.parent.closeSubPage()}catch(e){location.href='/'}">🏠</button>
       <button onclick="newConversation()">＋ 新剧场</button>
     </div>
     <div class="conv-list" id="convList"></div>
