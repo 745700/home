@@ -392,3 +392,15 @@ async function _receiveGift(giftId) {
     _presentNextGift();
   }, 800);
 }
+
+
+// ── 子页面左上角返回 + Android硬件返回键 ──
+function handleNativeBack() {
+  var url = window.location.href;
+  if (url.indexOf('home.html') >= 0 || url === 'file:///android_asset/static/home.html' || url.endsWith('/home')) {
+    return 'dialog'; // 主页：退出App
+  }
+  // 非主页：返回主页
+  location.href = 'home.html';
+  return 'handled';
+}
