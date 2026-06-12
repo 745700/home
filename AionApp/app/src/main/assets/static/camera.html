@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>摄像头哨兵 - Aion</title>
+<link rel="stylesheet" href="common.css">
+<style>
+.cam-container { display:flex; flex-direction:column; gap:12px; padding:12px; }
+.cam-feed-row { display:flex; gap:8px; }
+.cam-feed { flex:1; background:#111; border-radius:12px; aspect-ratio:4/3; display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative; }
+.cam-feed video, .cam-feed img { width:100%; height:100%; object-fit:cover; }
+.cam-feed-label { position:absolute; top:6px; left:8px; background:rgba(0,0,0,0.5); color:#fff; font-size:11px; padding:2px 6px; border-radius:4px; }
+.cam-placeholder { color:#555; font-size:13px; text-align:center; }
+.cam-controls { display:flex; gap:8px; align-items:center; }
+.cam-interval { flex:1; display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text2); }
+.cam-interval input { width:60px; padding:4px 6px; font-size:12px; background:var(--surface2); color:var(--text); border:1px solid var(--border); border-radius:6px; outline:none; }
+.cam-log { background:var(--surface2); border:1px solid var(--border); border-radius:10px; height:200px; overflow-y:auto; padding:10px; font-size:11px; color:var(--text2); font-family:monospace; }
+.cam-log-entry { margin-bottom:4px; padding-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.05); }
+.cam-log-time { color:var(--text3); margin-right:6px; }
+.cam-log-tag { padding:1px 5px; border-radius:3px; font-size:10px; margin-right:6px; }
+.cam-log-tag.ok { background:rgba(34,197,94,0.2); color:#22c55e; }
+.cam-log-tag.warn { background:rgba(245,158,11,0.2); color:#f59e0b; }
+.cam-log-tag.alert { background:rgba(239,68,68,0.2); color:#ef4444; }
+.cam-log-tag.info { background:rgba(59,130,246,0.2); color:#3b82f6; }
+.cam-status { text-align:center; font-size:12px; color:var(--text3); margin-top:4px; }
+</style>
+</head>
+<body>
+<div class="sub-page">
+  <div class="top-bar">
+    <button class="back-btn" onclick="stopSentinel(); location.href='/'">⬅</button>
+    <h2>📹 摄像头哨兵</h2>
+  </div>
+  <div class="page-content">
+    <div class="cam-container">
+      <!-- 摄像头预览区 -->
+      <div class="cam-feed-row">
+        <div class="cam-feed" id="feed1">
+          <div class="cam-placeholder">📷 摄像头1<br><span style="font-size:11px;color:#555">点击开始监控</span></div>
+        </div>
+        <div class="cam-feed" id="feed2">
+          <div class="cam-placeholder">📷 摄像头2<br><span style="font-size:11px;color:#555">可选</span></div>
+        </div>
+      </div>
+      <!-- 控制按钮 -->
+      <div class="cam-controls">
+        <button id="btnStart" class="btn-save" style="flex:1;font-size:14px;padding:10px 0" onclick="toggleSentinel()">▶ 开始监控</button>
+        <div class="cam-interval">
+          <label>间隔</label>
+          <input type="number" id="intervalSec" value="30" min="5" max="300">秒
+        </div>
+      </div>
+      <div class="cam-status" id="camStatus">等待开始</div>
+      <!-- 日志区 -->
+      <div id="camLog" class="cam-log">
+        <div class="cam-log-entry"><span class="cam-log-time">--</span><span class="cam-log-tag info">系统</span>摄像头哨兵已就绪</div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="common.js"></script>
+<script>
+let sentinelRunning = false;
+let sentinelTimer = null;
+let sentinelCount = 0;
+
+function log(msg, tag) {
+  const el = document.getElementById('camLog');
+  const time = new Date().toLocaleTimeString();
+  const entry = document.createElement('div');
+  entry.className = 'cam-log-entry';
+  entry.innerHTML = `<span class="cam-log-time">${time}</span><span class="cam-log-tag ${tag}">${tag.toUpperCase()}</span>${escHtml(msg)}`;
+  el.appendChild(entry);
+  el.scrollTop = el.scrollHeight;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function getSettings() {
+  try {
+    return JSON.parse(localStorage.getItem('settings') || '{}');
+  } catch(e) { return {}; }
+}
+
+async function startSentinel() {
+  const settings = getSettings();
+  const apiKey = settings.sentinel_api_key || '';
+  const baseUrl = settings.sentinel_base_url || 'https://api.siliconflow.cn';
+  const model = settings.sentinel_model || 'Qwen/Qwen2.5-VL-7B-Instruct';
+
+  if (!apiKey) {
+    log('错误：哨兵 API Key 未填写，请在设置中配置', 'warn');
+    return;
+  }
+
+  log(`开始第 ${++sentinelCount} 次检测，模型: ${model}`, 'info');
+
+  // 调用原生摄像头截图
+  let imageBase64 = '';
+  if (window.AionCamera && window.AionCamera.capture) {
+    try {
+      imageBase64 = await window.AionCamera.capture();
+      // 更新预览画面
+      const feed = document.getElementById('feed1');
+      feed.innerHTML = `<img src="data:image/jpeg;base64,${imageBase64}" alt="摄像头1"><span class="cam-feed-label">📷 摄像头1</span>`;
+    } catch(e) {
+      log('截图失败: ' + e.message, 'warn');
+    }
+  } else {
+    log('AionCamera 不可用，请在 App 内运行', 'warn');
+  }
+
+  if (!imageBase64) {
+    log('未获取到截图，跳过本次分析', 'warn');
+    return;
+  }
+
+  // 调用 SiliconFlow Qwen-VL 分析图片
+  try {
+    const payload = {
+      model: model,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image_url',
+              image_url: { url: 'data:image/jpeg;base64,' + imageBase64 }
+            },
+            {
+              type: 'text',
+              text: '你是一个家庭监控分析助手。请仔细观察这张图片，用50字以内描述：图片里有什么？有没有陌生人、异常情况或危险因素？如果一切正常，请简单说明。如果发现异常（陌生人、陌生人脸、危险、异常入侵、陌生人闯入等），请明确指出问题，并附上「[警报]」前缀。'
+            }
+          ]
+        }
+      ],
+      max_tokens: 300,
+      temperature: 0.3
+    };
+
+    const res = await fetch(baseUrl + '/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      log(`API 请求失败 (${res.status}): ${errText.slice(0, 100)}`, 'warn');
+      return;
+    }
+
+    const data = await res.json();
+    const result = data.choices?.[0]?.message?.content || '（无返回）';
+    log('分析结果: ' + result, 'ok');
+
+    // 检测异常关键词，发送系统通知
+    const alertKeywords = ['陌生人', '陌生人脸', '异常', '入侵', '闯入', '警报', '可疑', '危险', '陌生人物', '陌生车辆'];
+    const hasAlert = alertKeywords.some(kw => result.includes(kw));
+
+    if (hasAlert) {
+      log('⚠️ 检测到异常！发送系统通知...', 'alert');
+      if (window.AionPhoneScreen && window.AionPhoneScreen.showNotification) {
+        try {
+          await window.AionPhoneScreen.showNotification('⚠️ 哨兵警报', '检测到: ' + result.slice(0, 50));
+          log('系统通知已发送', 'ok');
+        } catch(e) {
+          log('通知发送失败: ' + e.message, 'warn');
+        }
+      } else {
+        log('AionPhoneScreen 不可用，无法发送通知', 'warn');
+      }
+    }
+
+  } catch(e) {
+    log('分析异常: ' + e.message, 'warn');
+  }
+}
+
+function toggleSentinel() {
+  if (sentinelRunning) {
+    stopSentinel();
+  } else {
+    sentinelRunning = true;
+    document.getElementById('btnStart').textContent = '⏸ 停止监控';
+    log('监控已启动', 'info');
+    startSentinel(); // 立即执行一次
+    const intervalSec = parseInt(document.getElementById('intervalSec').value) || 30;
+    const intervalMs = Math.max(5, Math.min(300, intervalSec)) * 1000;
+    sentinelTimer = setInterval(startSentinel, intervalMs);
+    document.getElementById('camStatus').textContent = `监控中（每 ${intervalSec} 秒）`;
+  }
+}
+
+function stopSentinel() {
+  sentinelRunning = false;
+  if (sentinelTimer) {
+    clearInterval(sentinelTimer);
+    sentinelTimer = null;
+  }
+  document.getElementById('btnStart').textContent = '▶ 开始监控';
+  document.getElementById('camStatus').textContent = '已停止';
+  log('监控已停止', 'info');
+}
+</script>
+</body>
+</html>
