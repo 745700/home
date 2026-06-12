@@ -113,35 +113,66 @@ connectCommonWS(msg => {
   await loadLocPanel();
 })();
 
+// ── 离线版定位：用 localStorage 存储配置 ──
+function getLocCfg() {
+  try {
+    return JSON.parse(localStorage.getItem('aion_loc_cfg') || '{}');
+  } catch(e) { return {}; }
+}
+function saveLocCfg(cfg) {
+  localStorage.setItem('aion_loc_cfg', JSON.stringify(cfg));
+}
+function getLocStatus() {
+  try {
+    return JSON.parse(localStorage.getItem('aion_loc_status') || '{}');
+  } catch(e) { return {}; }
+}
+function saveLocStatus(st) {
+  localStorage.setItem('aion_loc_status', JSON.stringify(st));
+}
+function getSettings() {
+  try {
+    return JSON.parse(localStorage.getItem('settings') || '{}');
+  } catch(e) { return {}; }
+}
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 async function loadLocPanel() {
-  try {
-    const loc = await api("GET", "/api/location/config");
-    $("lp_enabled").checked = loc.enabled || false;
-    $("lp_amap_key").value = loc.amap_key || "";
-    $("lp_home_lng").value = (loc.home_lng && loc.home_lat) ? loc.home_lng : "";
-    $("lp_home_lat").value = (loc.home_lng && loc.home_lat) ? loc.home_lat : "";
-    $("lp_threshold").value = loc.home_threshold || 500;
-    $("lp_poi_radius").value = loc.poi_radius || 2000;
-    $("lp_quiet").checked = loc.quiet_hours_enabled || false;
-    $("lp_qstart").value = loc.quiet_hours_start || "00:00";
-    $("lp_qend").value = loc.quiet_hours_end || "08:00";
-  } catch(e){}
-  try {
-    const s = await api("GET", "/api/location/status");
-    updateLocPanelStatus(s);
-    renderLocPois(s.nearby_pois || {});
-  } catch(e){}
+  const cfg = getLocCfg();
+  $("lp_enabled").checked = cfg.enabled || false;
+  $("lp_amap_key").value = cfg.amap_key || "";
+  $("lp_home_lng").value = cfg.home_lng || "";
+  $("lp_home_lat").value = cfg.home_lat || "";
+  $("lp_threshold").value = cfg.home_threshold || 500;
+  $("lp_poi_radius").value = cfg.poi_radius || 2000;
+  $("lp_quiet").checked = cfg.quiet_hours_enabled || false;
+  $("lp_qstart").value = cfg.quiet_hours_start || "00:00";
+  $("lp_qend").value = cfg.quiet_hours_end || "08:00";
+
+  const st = getLocStatus();
+  updateLocPanelStatus(st);
+  renderLocPois(st.nearby_pois || {});
 }
 
 function updateLocPanelStatus(s) {
   if (!s || !s.lng) { $("lpState").textContent = "未知"; return; }
   const stateMap = {at_home:"🏠 在家", outside:"🚶 外出", unknown:"❓ 未知"};
-  $("lpState").textContent = stateMap[s.state] || s.state;
-  $("lpAddr").textContent = s.address || "--";
-  if (s.distance_from_home > 0) { const d = s.distance_from_home; $("lpDist").textContent = d >= 1000 ? (d/1000).toFixed(1)+'km' : Math.round(d)+'m'; } else { $("lpDist").textContent = "--"; }
-  if (s.weather && s.weather.weather) $("lpWeather").textContent = `${s.weather.weather} ${s.weather.temperature}°C`; else $("lpWeather").textContent = "--";
-  if (s.steps != null && s.steps !== undefined) $("lpSteps").textContent = `🚶 ${s.steps} 步`; else $("lpSteps").textContent = "--";
-  if (s.updated_at) $("lpTime").textContent = new Date(s.updated_at * 1000).toLocaleTimeString(); else $("lpTime").textContent = "--";
+  $("lpState").textContent = stateMap[s.state] || s.state || "❓ 未知";
+  $("lpAddr").textContent = s.address || s.ai_analysis || "--";
+  if (s.distance_from_home > 0) {
+    const d = s.distance_from_home;
+    $("lpDist").textContent = d >= 1000 ? (d/1000).toFixed(1)+'km' : Math.round(d)+'m';
+  } else {
+    $("lpDist").textContent = "--";
+  }
+  if (s.weather && s.weather.weather) $("lpWeather").textContent = `${s.weather.weather} ${s.weather.temperature}°C`;
+  else $("lpWeather").textContent = "--";
+  if (s.steps != null && s.steps !== undefined) $("lpSteps").textContent = `🚶 ${s.steps} 步`;
+  else $("lpSteps").textContent = "--";
+  if (s.updated_at) $("lpTime").textContent = new Date(s.updated_at * 1000).toLocaleTimeString();
+  else $("lpTime").textContent = "--";
 }
 
 function renderLocPois(pois) {
@@ -156,7 +187,7 @@ function renderLocPois(pois) {
     for (const p of items) {
       const dist = p.distance ? `${parseInt(p.distance)}m` : '';
       const photoUrl = (p.photos && p.photos.length) ? p.photos[0] : '';
-      const thumb = photoUrl ? `<img class="loc-poi-thumb" src="${escHtml(photoUrl)}" alt="" onerror="this.outerHTML='<div class=\\'loc-poi-thumb-placeholder\\'>📍</div>'">` : '<div class="loc-poi-thumb-placeholder">📍</div>';
+      const thumb = photoUrl ? `<img class="loc-poi-thumb" src="${escHtml(photoUrl)}" alt="" onerror="this.outerHTML='<div class=\'loc-poi-thumb-placeholder\'>📍</div>'">` : '<div class="loc-poi-thumb-placeholder">📍</div>';
       let meta = '';
       if (dist) meta += dist;
       if (p.rating && p.rating !== '[]') meta += (meta ? ' · ' : '') + `<span class="poi-rating">⭐${p.rating}</span>`;
@@ -170,93 +201,170 @@ function renderLocPois(pois) {
 }
 
 async function saveLocPanel() {
-  try {
-    const body = { enabled: $("lp_enabled").checked, quiet_hours_enabled: $("lp_quiet").checked, quiet_hours_start: $("lp_qstart").value, quiet_hours_end: $("lp_qend").value };
-    const ak = $("lp_amap_key").value.trim(); if (ak) body.amap_key = ak;
-    const hlng = parseFloat($("lp_home_lng").value); const hlat = parseFloat($("lp_home_lat").value);
-    if (!isNaN(hlng)) body.home_lng = hlng; if (!isNaN(hlat)) body.home_lat = hlat;
-    const ht = parseInt($("lp_threshold").value); if (!isNaN(ht)) body.home_threshold = ht;
-    const pr = parseInt($("lp_poi_radius").value); if (!isNaN(pr)) body.poi_radius = pr;
-    await api("PUT", "/api/location/config", body);
-    $("lpCfgMsg").textContent = "✅ 已保存";
-    setTimeout(() => $("lpCfgMsg").textContent = "", 2000);
-  } catch(e) { $("lpCfgMsg").textContent = "❌ " + e.message; }
+  const cfg = {
+    enabled: $("lp_enabled").checked,
+    quiet_hours_enabled: $("lp_quiet").checked,
+    quiet_hours_start: $("lp_qstart").value,
+    quiet_hours_end: $("lp_qend").value,
+    amap_key: $("lp_amap_key").value.trim(),
+    home_lng: parseFloat($("lp_home_lng").value) || null,
+    home_lat: parseFloat($("lp_home_lat").value) || null,
+    home_threshold: parseInt($("lp_threshold").value) || 500,
+    poi_radius: parseInt($("lp_poi_radius").value) || 2000
+  };
+  saveLocCfg(cfg);
+  $("lpCfgMsg").textContent = "✅ 已保存";
+  setTimeout(() => $("lpCfgMsg").textContent = "", 2000);
 }
 
 async function forceSync() {
   const btn = $("btnForceSync");
   btn.disabled = true;
   btn.textContent = "⏳ 同步中...";
-  try {
-    const r = await api("POST", "/api/location/force-sync");
-    if (r.ok) {
-      btn.textContent = "✅ 已同步";
-      const s = await api("GET", "/api/location/status");
-      updateLocPanelStatus(s);
-      renderLocPois(s.nearby_pois || {});
-    } else {
-      btn.textContent = "❌ " + (r.error || "同步失败");
-    }
-  } catch(e) {
-    btn.textContent = "❌ " + e.message;
+  const cfg = getLocCfg();
+  const settings = getSettings();
+
+  if (!cfg.enabled) {
+    $("lpCfgMsg").textContent = "⚠️ 定位未启用，请先在配置中开启";
+    btn.disabled = false; btn.textContent = "🔄 同步位置";
+    return;
   }
-  setTimeout(() => { btn.disabled = false; btn.textContent = "🔄 同步位置"; }, 2000);
+
+  // 检查静默时段
+  if (cfg.quiet_hours_enabled) {
+    const now = new Date();
+    const cur = now.getHours()*60 + now.getMinutes();
+    const [qsH,qsM] = (cfg.quiet_hours_start||'00:00').split(':').map(Number);
+    const [qeH,qeM] = (cfg.quiet_hours_end||'08:00').split(':').map(Number);
+    const qStart = qsH*60+qsM, qEnd = qeH*60+qeM;
+    const inQuiet = qStart < qEnd ? (cur >= qStart && cur < qEnd) : (cur >= qStart || cur < qEnd);
+    if (inQuiet) {
+      $("lpCfgMsg").textContent = "⏰ 当前处于静默时段，跳过定位";
+      btn.disabled = false; btn.textContent = "🔄 同步位置";
+      return;
+    }
+  }
+
+  // 获取浏览器 GPS 定位
+  try {
+    const pos = await new Promise((resolve, reject) => {
+      if (!navigator.geolocation) { reject(new Error("浏览器不支持定位")); return; }
+      navigator.geolocation.getCurrentPosition(resolve, reject, {enableHighAccuracy:true, timeout:15000});
+    });
+    const lng = pos.coords.longitude;
+    const lat = pos.coords.latitude;
+    $("lpCfgMsg").textContent = `📡 定位成功: ${lng.toFixed(4)}, ${lat.toFixed(4)}，正在 AI 分析...`;
+
+    // 用 SiliconFlow Qwen2.5-7B 分析位置
+    const apiKey = settings.sentinel_api_key || settings.siliconflow_key || '';
+    const baseUrl = settings.sentinel_base_url || 'https://api.siliconflow.cn';
+    const model = settings.sentinel_model || 'Qwen/Qwen2.5-7B-Instruct';
+
+    let state = 'unknown', aiAnalysis = '--', address = '--';
+    if (apiKey) {
+      try {
+        const homeLng = cfg.home_lng, homeLat = cfg.home_lat;
+        const distFromHome = (homeLng && homeLat)
+          ? Math.round(Math.sqrt(Math.pow((lng-homeLng)*111320*Math.cos(homeLat*Math.PI/180),2)+Math.pow((lat-homeLat)*110574,2)))
+          : 0;
+
+        const prompt = `你是一个位置分析助手。用户当前 GPS 坐标: 经度 ${lng.toFixed(4)}, 纬度 ${lat.toFixed(4)}。` +
+          (homeLng ? ` 家坐标: 经度 ${homeLng.toFixed(4)}, 纬度 ${homeLat.toFixed(4)}，距家约 ${distFromHome} 米。` : '') +
+          ` 请分析并用 JSON 格式回复，包含以下字段（只返回 JSON，不要其他文字）：` +
+          `{"state":"at_home 或 outside 或 unknown","ai_analysis":"一句话描述当前位置，如'在家'、'在公司'、'在XX商场'等","address":"猜测的具体地址或位置名称（20字以内）"}`;
+
+        const aiRes = await fetch(baseUrl + '/v1/chat/completions', {
+          method: 'POST',
+          headers: {'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json'},
+          body: JSON.stringify({model, messages:[{role:'user',content:prompt}], max_tokens:150, temperature:0.3})
+        });
+        if (aiRes.ok) {
+          const aiData = await aiRes.json();
+          let raw = aiData.choices?.[0]?.message?.content || '';
+          // 提取 JSON
+          const jsonMatch = raw.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            state = parsed.state || 'unknown';
+            aiAnalysis = parsed.ai_analysis || '--';
+            address = parsed.address || '--';
+          }
+        }
+      } catch(e) {
+        console.warn('[Location] AI 分析失败:', e);
+        $("lpCfgMsg").textContent = `⚠️ AI 分析失败: ${e.message}`;
+      }
+    }
+
+    const st = {
+      lng, lat,
+      state,
+      address,
+      ai_analysis: aiAnalysis,
+      distance_from_home: (cfg.home_lng && cfg.home_lat)
+        ? Math.round(Math.sqrt(Math.pow((lng-cfg.home_lng)*111320*Math.cos(cfg.home_lat*Math.PI/180),2)+Math.pow((lat-cfg.home_lat)*110574,2)))
+        : 0,
+      updated_at: Date.now()/1000
+    };
+    saveLocStatus(st);
+    updateLocPanelStatus(st);
+    $("lpCfgMsg").textContent = `✅ 同步完成: ${aiAnalysis}`;
+    btn.textContent = "✅ 已同步";
+  } catch(e) {
+    $("lpCfgMsg").textContent = "❌ " + e.message;
+    btn.textContent = "❌ 失败";
+  }
+  setTimeout(() => { btn.disabled = false; btn.textContent = "🔄 同步位置"; }, 2500);
 }
 
 async function phoneSync() {
+  // 通知 App 上报步数（通过 WS 或原生桥）
   const btn = $("btnPhoneSync");
   btn.disabled = true;
   btn.textContent = "⏳ 请求中...";
-  try {
-    await api("POST", "/api/location/request-phone-sync");
-    btn.textContent = "📡 已发送";
-    // 等手机上报后 WS 会推送更新，再主动拉一次兜底
-    setTimeout(async () => {
-      try {
-        const s = await api("GET", "/api/location/status");
-        updateLocPanelStatus(s);
-      } catch(e){}
-    }, 3000);
-  } catch(e) {
-    btn.textContent = "❌ " + e.message;
+  if (window.AionPhoneScreen && window.AionPhoneScreen.requestStepSync) {
+    try {
+      await window.AionPhoneScreen.requestStepSync();
+      btn.textContent = "📡 已发送";
+    } catch(e) {
+      btn.textContent = "❌ " + e.message;
+    }
+  } else {
+    btn.textContent = "App 不可用";
   }
   setTimeout(() => { btn.disabled = false; btn.textContent = "📱 同步手机步数"; }, 4000);
 }
-async function stepDiag() {
+
+function stepDiag() {
   const el = $("stepDiagInfo");
   el.style.display = "block";
-  // 直接读取最近心跳带过来的诊断信息
+  el.textContent = "ℹ️ 步数数据来自手机 App 心跳上报，需在 App 内开启步数权限";
+}
+
+async function setHomeLoc() {
+  $("lpCfgMsg").textContent = "📡 正在获取浏览器定位...";
   try {
-    const r = await api("GET", "/api/location/step-diag");
-    if (r.info) {
-      el.textContent = "📊 " + r.info;
-    } else {
-      el.textContent = "ℹ️ 还没有诊断数据，等待手机下次心跳上报（每10分钟）或点「同步手机步数」触发";
-    }
+    const pos = await new Promise((resolve, reject) => {
+      if (!navigator.geolocation) { reject(new Error("浏览器不支持定位")); return; }
+      navigator.geolocation.getCurrentPosition(resolve, reject, {enableHighAccuracy:true, timeout:15000});
+    });
+    const lng = pos.coords.longitude;
+    const lat = pos.coords.latitude;
+    const cfg = getLocCfg();
+    cfg.home_lng = lng;
+    cfg.home_lat = lat;
+    saveLocCfg(cfg);
+    $("lp_home_lng").value = lng.toFixed(6);
+    $("lp_home_lat").value = lat.toFixed(6);
+    $("lpCfgMsg").textContent = `✅ 已设为家：${lng.toFixed(4)}, ${lat.toFixed(4)}`;
+    loadLocPanel();
   } catch(e) {
-    el.textContent = "❌ " + e.message;
+    $("lpCfgMsg").textContent = "❌ " + e.message;
   }
 }
-async function setHomeLoc() {
-  try {
-    const r = await api("POST", "/api/location/set-home");
-    if (r.ok) { $("lp_home_lng").value = r.home_lng; $("lp_home_lat").value = r.home_lat; $("lpCfgMsg").textContent = "✅ 已设为家：" + (r.address || `${r.home_lng},${r.home_lat}`); return; }
-  } catch(e){}
-  if (!navigator.geolocation) { alert("浏览器不支持定位"); return; }
-  $("lpCfgMsg").textContent = "📡 正在获取浏览器定位...";
-  navigator.geolocation.getCurrentPosition(
-    async (pos) => {
-      try {
-        await api("POST", "/api/location/heartbeat", {lng:pos.coords.longitude, lat:pos.coords.latitude, accuracy:pos.coords.accuracy, is_gcj02:false, force:true});
-        const r = await api("POST", "/api/location/set-home");
-        if (r.ok) { $("lp_home_lng").value = r.home_lng; $("lp_home_lat").value = r.home_lat; $("lpCfgMsg").textContent = "✅ 已设为家：" + (r.address || `${r.home_lng},${r.home_lat}`); loadLocPanel(); }
-        else { $("lpCfgMsg").textContent = "❌ " + (r.error || "设置失败"); }
-      } catch(e) { $("lpCfgMsg").textContent = "❌ " + e.message; }
-    },
-    (err) => { $("lpCfgMsg").textContent = "❌ 定位失败，请手动输入坐标"; },
-    {enableHighAccuracy:true, timeout:15000}
-  );
-}
+
 </script>
+
 </body>
 </html>
+
