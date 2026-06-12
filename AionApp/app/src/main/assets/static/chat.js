@@ -80,6 +80,8 @@ async function init() {
     { key: 'Qwen/Qwen2.5-7B-Instruct' },
     { key: 'THUDM/GLM-4-9B-chat' },
     { key: 'deepseek-ai/DeepSeek-R1' },
+    { key: 'Qwen/Qwen2.5-VL-7B-Instruct' },
+    { key: 'Qwen/Qwen2.5-VL-32B-Instruct' },
   ];
   renderModelSelect();
   worldBook = await api("GET", "/api/worldbook");
@@ -845,16 +847,30 @@ function changeTTSVoice() {
 
 async function refreshTTSVoices() {
   try {
-    const data = await api("GET", "/api/tts/voices");
+    const settings = JSON.parse(localStorage.getItem('settings') || '{}');
+    const key = settings.siliconflow_key || '';
     const sel = $('ttsVoiceSelect');
-    if (data.voices && data.voices.length > 0) {
-      sel.innerHTML = data.voices.map(v => {
-        const name = v.customName || v.uri || 'Unknown';
-        return `<option value="${v.uri}" ${v.uri === ttsVoiceId ? 'selected' : ''}>${name}</option>`;
+    if (!key) {
+      sel.innerHTML = '<option value="">请先在设置填写硅基流动 Key</option>';
+      return;
+    }
+    const res = await fetch('https://api.siliconflow.cn/v1/audio/voice/list', {
+      headers: { 'Authorization': 'Bearer ' + key }
+    });
+    if (!res.ok) {
+      console.error('[TTS] 音色列表请求失败:', res.status, await res.text());
+      sel.innerHTML = '<option value="">加载失败</option>';
+      return;
+    }
+    const data = await res.json();
+    const voices = data.voices || [];
+    if (voices.length > 0) {
+      sel.innerHTML = voices.map(v => {
+        const name = v.name || v.voice_id || 'Unknown';
+        return `<option value="${v.voice_id}" ${v.voice_id === ttsVoiceId ? 'selected' : ''}>${name}</option>`;
       }).join('');
-      // 如果没有选中的音色，默认选第一个
-      if (!ttsVoiceId || !data.voices.find(v => v.uri === ttsVoiceId)) {
-        ttsVoiceId = data.voices[0].uri;
+      if (!ttsVoiceId || !voices.find(v => v.voice_id === ttsVoiceId)) {
+        ttsVoiceId = voices[0].voice_id;
         localStorage.setItem('aion_tts_voice', ttsVoiceId);
         sel.value = ttsVoiceId;
       }
@@ -2059,6 +2075,41 @@ async function _processSSEStream(res) {
     }
   }
 
+  // SiliconFlow TTS 语音合成
+  if (aiMsgId && ttsEnabled && ttsVoiceId && aiContent) {
+    try {
+      const settings = JSON.parse(localStorage.getItem('settings') || '{}');
+      const key = settings.siliconflow_key || '';
+      if (!key) {
+        console.warn('[TTS] 硅基流动 Key 未填写，跳过语音合成');
+      } else {
+        const ttsRes = await fetch('https://api.siliconflow.cn/v1/audio/speech', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + key,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: 'FunAudioLLM/CosyVoice2-0.5B',
+            input: aiContent,
+            voice: ttsVoiceId,
+            response_format: 'mp3'
+          })
+        });
+        if (!ttsRes.ok) {
+          console.error('[TTS] 语音合成失败:', ttsRes.status, await ttsRes.text());
+        } else {
+          const blob = await ttsRes.blob();
+          const blobUrl = URL.createObjectURL(blob);
+          ttsAudio.src = blobUrl;
+          ttsAudio.play().catch(e => console.warn('[TTS] 播放失败:', e));
+        }
+      }
+    } catch(e) {
+      console.warn('[TTS] 语音合成异常:', e);
+    }
+  }
+
   // Save messages to localStorage
   if (aiMsgId) {
     finishTTSForMsg(aiMsgId);
@@ -3214,24 +3265,57 @@ async function _voiceSendMessage(audioBlob, duration) {
     alert('语音处理失败'); return;
   }
 
-  // 2. 转写音频（失败自动重试一次）
+  // 2. 转写音频（SiliconFlow ASR）
   const fd2 = new FormData();
   fd2.append('file', audioBlob, `voice.${ext}`);
   let transcript = '';
-  for (let _try = 0; _try < 2; _try++) {
+  const key = localStorage.getItem('settings') ? JSON.parse(localStorage.getItem('settings')).siliconflow_key : '';
+  if (!key) {
+    console.warn('[VoiceMsg] 硅基流动 Key 未填写，跳过 ASR 转写');
+  } else {
     try {
-      const body2 = _try === 0 ? fd2 : (() => { const f = new FormData(); f.append('file', audioBlob, `voice.${ext}`); return f; })();
-      // [voice transcribe stub] const res2 = { ok: false, json: async () => ({ text: '' }) };
-      const r2 = await res2.json();
-      transcript = r2.text || '';
-      if (transcript) break;
-      console.warn(`[VoiceMsg] Transcribe attempt ${_try+1} returned empty, ${_try === 0 ? 'retrying...' : 'giving up'}`);
-    } catch (e) {
-      console.warn(`[VoiceMsg] Transcribe attempt ${_try+1} failed:`, e);
+      const res2 = await fetch('https://api.siliconflow.cn/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + key },
+        body: fd2,
+      });
+      if (res2.ok) {
+        const r2 = await res2.json();
+        transcript = r2.text || '';
+      } else {
+        console.error('[VoiceMsg] ASR 请求失败:', res2.status, await res2.text());
+      }
+    } catch(e) {
+      console.warn('[VoiceMsg] ASR 异常:', e);
     }
   }
 
-  // 3. 构建语音附件
+  // 3. 情绪检测（Hume AI）
+  const settings = JSON.parse(localStorage.getItem('settings') || '{}');
+  if (settings.hume_api_key && transcript) {
+    try {
+      const emRes = await fetch('https://api.hume.ai/v0/models/prosody/predict', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + settings.hume_api_key },
+        body: fd2, // 发送原始音频
+      });
+      if (emRes.ok) {
+        const emData = await emRes.json();
+        const prosody = emData?.results?.predictions?.[0]?.emotions;
+        if (prosody && prosody.length > 0) {
+          prosody.sort((a, b) => b.score - a.score);
+          const topEmo = prosody[0].name;
+          transcript = `[情绪:${topEmo}] ${transcript}`;
+        }
+      } else {
+        console.warn('[VoiceMsg] Hume 情绪检测失败:', emRes.status);
+      }
+    } catch(e) {
+      console.warn('[VoiceMsg] Hume 情绪检测异常:', e);
+    }
+  }
+
+  // 4. 构建语音附件
   const voiceAtt = {
     type: 'voice',
     url: uploadRes.url,
@@ -4113,3 +4197,4 @@ async function openWalletPanel() {
 function closeWalletPanel() {
   $('walletPanelOverlay').classList.remove('show');
 }
+
