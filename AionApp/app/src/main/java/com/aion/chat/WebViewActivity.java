@@ -328,6 +328,18 @@ public class WebViewActivity extends AppCompatActivity {
                 String path = request.getUrl().getPath();
                 if (path == null) return super.shouldInterceptRequest(view, request);
 
+                // 拦截子页面通过 file:// 加载本地资源（common.js 等）
+                if (path != null && path.startsWith("/android_asset/")) {
+                    String assetPath = path.substring(15); // 去掉 "/android_asset/" 前缀
+                    try {
+                        InputStream is = getAssets().open(assetPath);
+                        String mime = guessMimeType(assetPath);
+                        return new WebResourceResponse(mime, "UTF-8", is);
+                    } catch (IOException e) {
+                        // 文件不存在，继续
+                    }
+                }
+
                 // 匹配 /public/* 和 /static/*.js|css|json 的请求
                 String assetPath = null;
                 if (path.startsWith("/public/")) {
