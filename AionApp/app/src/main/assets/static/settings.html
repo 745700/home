@@ -78,6 +78,18 @@
 <script>
 connectCommonWS();
 
+// 诊断：检查关键函数是否存在
+(function diagnose() {
+  var results = [];
+  results.push('api: ' + (typeof api === 'function' ? '✓' : '✗ ' + typeof api));
+  results.push('showToast: ' + (typeof showToast === 'function' ? '✓' : '✗ ' + typeof showToast));
+  results.push('localStorage: ' + (typeof localStorage !== 'undefined' ? '✓' : '✗ ' + typeof localStorage));
+  results.push('window.parent: ' + (window.parent ? '✓' : '✗'));
+  results.push('parent.closeSubPage: ' + (window.parent && typeof window.parent.closeSubPage === 'function' ? '✓' : '✗ ' + typeof (window.parent && window.parent.closeSubPage)));
+  results.push('location.href: ' + location.href);
+  alert('诊断结果:\n' + results.join('\n'));
+})();
+
 (async function init() {
   const s = await api("GET", "/api/settings");
   $("geminiKeyInput").value = s.gemini_key || "";
