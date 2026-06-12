@@ -54,7 +54,7 @@
 <body>
 <div class="sub-page">
   <div class="top-bar" style="position:relative">
-    <button class="back-btn" onclick="location.href='/'">⬅</button>
+    <button class="back-btn" onclick="try{window.parent.closeSubPage()}catch(e){location.href='/'}">⬅</button>
     <h2>📔 日记本</h2>
     <button class="diary-add-btn" onclick="openDiaryModal()" title="写日记">＋</button>
   </div>
