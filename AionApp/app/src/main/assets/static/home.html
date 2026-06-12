@@ -378,6 +378,24 @@ body[data-theme="dark"] .gsi-title { color: rgba(244,246,255,0.70); }
 @keyframes fadeOut {
   to { opacity: 0; transform: scale(0.97); }
 }
+
+
+/* ── 右上角版本标记 ── */
+#version-badge {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  background: rgba(255,140,0,0.85);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 10px;
+  z-index: 9999;
+  pointer-events: none;
+  letter-spacing: 0.5px;
+}
+
 </style>
 </head>
 <body>
@@ -393,7 +411,8 @@ body[data-theme="dark"] .gsi-title { color: rgba(244,246,255,0.70); }
     <!-- 应用网格 -->
     <button class="global-search-trigger" onclick="openGlobalSearch()">搜索聊天记录</button>
 
-    <div class="app-grid" id="appGrid"></div>
+    <div id="version-badge">v302</div>
+<div class="app-grid" id="appGrid"></div>
 
     <!-- 底部 Dock -->
     <div class="dock" id="dock"></div>
