@@ -15,7 +15,7 @@
 <div class="pg-app">
   <!-- 顶栏 -->
   <header class="pg-header">
-    <button class="pg-back-btn" onclick="location.href='/'">⬅</button>
+    <button class="pg-back-btn" onclick="try{window.parent.closeSubPage()}catch(e){location.href='/'}">⬅</button>
     <h1 class="pg-title">娱乐室</h1>
     <select class="pg-server-select" id="serverSelect">
       <option value="">选择服务器...</option>
