@@ -218,6 +218,16 @@ public class WebViewActivity extends AppCompatActivity {
         webView.addJavascriptInterface(new BleBridge(webView, this), "AionBle");
         webView.addJavascriptInterface(new AionRingBleBridge(webView, this), "AionRingBle");
 
+        // 页面导航桥接（子页面 iframe 关闭）
+        webView.addJavascriptInterface(new Object() {
+            @JavascriptInterface
+            public void closeSubPage() {
+                mainHandler.post(() -> {
+                    webView.loadUrl("javascript:try{if(window.parent&&typeof window.parent.closeSubPage==='function'){window.parent.closeSubPage();}else{window.parent.postMessage('closeSubPage','*');}}catch(e){}void 0;");
+                });
+            }
+        }, "AionNavigator");
+
         // 图片保存桥接（WebView 不支持 blob URL 下载，用原生方法写入相册）
         webView.addJavascriptInterface(new Object() {
             @JavascriptInterface
@@ -275,6 +285,11 @@ public class WebViewActivity extends AppCompatActivity {
                         startActivity(new Intent(WebViewActivity.this, LauncherActivity.class));
                         finish();
                     }
+                    return true;
+                }
+                // 子页面 iframe 导航到 home 时关闭子页面，而不是跳转
+                if (!request.isForMainFrame() && "/".equals(request.getUrl().getPath())) {
+                    webView.loadUrl("javascript:try{if(window.parent&&typeof window.parent.closeSubPage==='function'){window.parent.closeSubPage();}}catch(e){}void 0;");
                     return true;
                 }
                 // ── 路由路径重定向 ──
