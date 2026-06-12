@@ -44,6 +44,13 @@
     </div>
 
     <div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.08)">
+      <label class="form-label" style="font-size:15px;color:#ff8359">◈ Hume AI（情绪检测）</label>
+      <p style="font-size:12px;color:#aaa;margin:2px 0 10px 0">用于语音消息情绪分析，platform.hume.ai 注册获取</p>
+      <label class="form-label">Hume API Key</label>
+      <input class="form-input" type="password" id="humeApiKeyInput" placeholder="platform.hume.ai 注册获取" autocomplete="off" class="form-input" style="font-family:monospace">
+    </div>
+
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.08)">
       <label class="form-label" style="font-size:15px;color:#ff8359">📱 手机屏幕监督</label>
       <p style="font-size:12px;color:#aaa;margin:2px 0 10px 0">Android App 可开启。MediaProjection 在线时优先用共享屏幕；无障碍开启后，可在共享掉线时继续截普通界面。</p>
       <p id="phoneScreenStatus" style="font-size:12px;color:#aaa;margin:2px 0 10px 0"></p>
@@ -84,6 +91,7 @@ connectCommonWS();
   $("sfKeyInput").value = s.siliconflow_key || "";
   $("aiproKeyInput").value = s.aipro_key || "";
   $("neteaseMusicUInput").value = s.netease_music_u || "";
+  $("humeApiKeyInput").value = s.hume_api_key || "";
   refreshPhoneScreenStatus();
 })();
 
@@ -99,7 +107,8 @@ async function saveSettings() {
     embedding_model: $("embeddingModelInput").value.trim(),
     siliconflow_key: $("sfKeyInput").value.trim(),
     aipro_key: $("aiproKeyInput").value.trim(),
-    netease_music_u: $("neteaseMusicUInput").value.trim()
+    netease_music_u: $("neteaseMusicUInput").value.trim(),
+    hume_api_key: $("humeApiKeyInput").value.trim()
   });
   showToast("✅ 已保存");
 }
@@ -172,3 +181,4 @@ function refreshPhoneScreenStatus() {
 </script>
 </body>
 </html>
+
