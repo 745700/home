@@ -98,7 +98,8 @@ connectCommonWS();
 })();
 
 async function saveSettings() {
-  await api("PUT", "/api/settings", {
+  
+    await api("PUT", "/api/settings", {
     gemini_key: $("geminiKeyInput").value.trim(),
     gemini_free_key: $("geminiFreeKeyInput").value.trim(),
     sentinel_base_url: $("sentinelBaseUrlInput").value.trim(),
