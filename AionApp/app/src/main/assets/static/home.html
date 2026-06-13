@@ -412,7 +412,14 @@ body[data-theme="dark"] .gsi-title { color: rgba(244,246,255,0.70); }
     <button class="global-search-trigger" onclick="openGlobalSearch()">搜索聊天记录</button>
 
     <div id="version-badge">★</div>
-<div class="app-grid" id="appGrid"></div>
+<div class="app-pages-wrapper" id="appPagesWrapper">
+  <div class="app-pages-container" id="appPagesContainer">
+    <div class="app-grid" id="appGrid"></div>
+  </div>
+  <button class="page-arrow left" id="pageLeft" onclick="switchAppPage(-1)">‹</button>
+  <button class="page-arrow right" id="pageRight" onclick="switchAppPage(1)">›</button>
+</div>
+<div class="page-dots" id="pageDots"></div>
 
     <!-- 底部 Dock -->
     <div class="dock" id="dock"></div>
@@ -481,15 +488,104 @@ function toggleAionTheme() {
 applyAionTheme(localStorage.getItem('aion_chat_theme') || 'light');
 
 /* ── 渲染 ─────────────────────────────────────── */
+const APPS_PER_PAGE = 16;
+let _appPage = 0;
+let _touchStartX = 0;
+let _touchCurrentX = 0;
+let _isDragging = false;
+
+function getGridApps() { return APPS.filter(a => !a.dock); }
+
 function renderApps() {
   const grid = document.getElementById('appGrid');
   const dock = document.getElementById('dock');
-
-  const gridApps = APPS.filter(a => !a.dock);
+  const gridApps = getGridApps();
   const dockApps = APPS.filter(a => a.dock);
 
-  grid.innerHTML = gridApps.map(app => appHTML(app)).join('');
+  // 计算总页数
+  const totalPages = Math.max(1, Math.ceil(gridApps.length / APPS_PER_PAGE));
+  if (_appPage >= totalPages) _appPage = totalPages - 1;
+  if (_appPage < 0) _appPage = 0;
+
+  // 当前页的 apps
+  const start = _appPage * APPS_PER_PAGE;
+  const pageApps = gridApps.slice(start, start + APPS_PER_PAGE);
+  grid.innerHTML = pageApps.map(app => appHTML(app)).join('');
+
   dock.innerHTML = dockApps.map(app => appHTML(app)).join('');
+
+  // 渲染分页点
+  renderPageDots(totalPages);
+
+  // 更新翻页箭头
+  updatePageArrows(totalPages);
+
+  // 绑定触摸滑动
+  bindPageSwipe();
+}
+
+function renderPageDots(total) {
+  const dotsEl = document.getElementById('pageDots');
+  if (!dotsEl || total <= 1) {
+    if (dotsEl) dotsEl.innerHTML = '';
+    return;
+  }
+  dotsEl.innerHTML = Array.from({length: total}, (_, i) =>
+    `<div class="page-dot ${i === _appPage ? 'active' : ''}" onclick="goToAppPage(${i})"></div>`
+  ).join('');
+}
+
+function updatePageArrows(total) {
+  const left = document.getElementById('pageLeft');
+  const right = document.getElementById('pageRight');
+  if (!left || !right || total <= 1) return;
+  left.classList.toggle('visible', _appPage > 0);
+  right.classList.toggle('visible', _appPage < total - 1);
+}
+
+function switchAppPage(dir) {
+  const total = Math.max(1, Math.ceil(getGridApps().length / APPS_PER_PAGE));
+  const next = Math.max(0, Math.min(total - 1, _appPage + dir));
+  if (next !== _appPage) {
+    _appPage = next;
+    renderApps();
+  }
+}
+
+function goToAppPage(page) {
+  if (page !== _appPage) {
+    _appPage = page;
+    renderApps();
+  }
+}
+
+function bindPageSwipe() {
+  const wrapper = document.getElementById('appPagesWrapper');
+  if (!wrapper) return;
+  const container = document.getElementById('appPagesContainer');
+  if (!container) return;
+
+  wrapper.addEventListener('touchstart', e => {
+    _touchStartX = e.touches[0].clientX;
+    _isDragging = false;
+    container.classList.remove('dragging');
+  }, { passive: true });
+
+  wrapper.addEventListener('touchmove', e => {
+    _touchCurrentX = e.touches[0].clientX;
+    const dx = _touchCurrentX - _touchStartX;
+    if (Math.abs(dx) > 8) {
+      _isDragging = true;
+    }
+  }, { passive: true });
+
+  wrapper.addEventListener('touchend', e => {
+    if (!_isDragging) return;
+    const dx = _touchCurrentX - _touchStartX;
+    if (Math.abs(dx) > 50) {
+      switchAppPage(dx < 0 ? 1 : -1);
+    }
+  }, { passive: true });
 }
 
 function appHTML(app) {
