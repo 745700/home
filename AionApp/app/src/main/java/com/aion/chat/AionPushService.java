@@ -246,6 +246,38 @@ public class AionPushService extends Service {
                 requestAccessibilityPhoneScreen("manual_test", true);
                 return START_STICKY;
             }
+            // WebView AionAlarm 接口触发的闹钟
+            if ("alarm".equals(action)) {
+                String label = intent.getStringExtra("label");
+                long triggerAt = intent.getLongExtra("triggerAt", System.currentTimeMillis() + 60000);
+                if (label == null) label = "闹铃";
+                try {
+                    AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+                    Intent alarmIntent = new Intent(this, AionPushService.class);
+                    alarmIntent.putExtra("action", "alarm_triggered");
+                    alarmIntent.putExtra("label", label);
+                    PendingIntent pi = PendingIntent.getService(getApplicationContext(),
+                            (label + triggerAt).hashCode(), alarmIntent,
+                            PendingIntent.FLAG_ONE_SHOT | PendingIntent.FLAG_IMMUTABLE);
+                    if (am != null) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi);
+                        } else {
+                            am.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pi);
+                        }
+                    }
+                    Log.i(TAG, "Alarm set: " + label + " at " + triggerAt);
+                } catch (Exception e) {
+                    Log.e(TAG, "Failed to set alarm", e);
+                }
+                return START_STICKY;
+            }
+            if ("alarm_triggered".equals(action)) {
+                String label = intent.getStringExtra("label");
+                if (label == null) label = "闹铃";
+                showNotif(CH_ALARM, "⏰ " + label, "时间到啦~", true);
+                return START_STICKY;
+            }
 
             String url = intent.getStringExtra("url");
             if (url != null) {
