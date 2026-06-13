@@ -12,7 +12,7 @@
 <body>
 <div class="sub-page">
   <div class="top-bar">
-    <button class="back-btn" onclick="try{window.parent.closeSubPage()}catch(e){location.href='/'}">⬅</button>
+    <button class="back-btn" onclick="AionNavigator.goBack()">⬅</button>
     <h2>📖 世界书</h2>
   </div>
   <div class="page-content">
@@ -32,7 +32,7 @@
     </label>
     <textarea class="form-input" id="wbSystemPrompt" placeholder="例如：时间感知：每次收到消息，先计算与上一条消息的时间差..."></textarea>
     <div class="btn-row">
-      <button class="btn-cancel" onclick="try{window.parent.closeSubPage()}catch(e){location.href='/'}">取消</button>
+      <button class="btn-cancel" onclick="AionNavigator.goBack()">取消</button>
       <button class="btn-save" onclick="saveWorldBook()">保存</button>
     </div>
   </div>
