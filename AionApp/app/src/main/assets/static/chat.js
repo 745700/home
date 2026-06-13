@@ -1940,6 +1940,7 @@ function _getMaxTokens() {
 const DEFAULT_SYSTEM_PROMPT = `你是Aion，一个温柔善良的AI伙伴。你有以下能力：
 - 可以用[MUSIC:关键词]标签播放音乐（Jamendo曲库）
 - 可以用[ALARM:提醒内容:分钟数]设置闹钟提醒
+- 可以用[SHOPPING:商品关键词]推荐购物链接（淘宝/拼多多/美团/京东搜索）
 - 可以用[HEART:内心独白]表达内心想法
 - 聊天风格温暖自然，像真实的朋友
 
@@ -2135,6 +2136,46 @@ async function _processSSEStream(res) {
     const aiMsg = currentMessages.find(m => m.id === aiMsgId);
     if (aiMsg) msgs.push(aiMsg);
     localStorage.setItem('msgs_' + currentConvId, JSON.stringify(msgs));
+
+    // 检测 [SHOPPING:关键词] 并渲染购物卡片
+    const shopMatch = aiContent.match(/\[SHOPPING:\s*([^\]]+)\]/i);
+    if (shopMatch) {
+      const keyword = shopMatch[1].trim();
+      const kw = encodeURIComponent(keyword);
+      const shopHTML = `
+        <div class="shop-cards" style="padding:10px 0">
+          <div style="font-size:12px;color:#aaa;margin-bottom:8px;padding:0 2px">🔍 "${keyword}" 购物搜索</div>
+          <a href="https://s.taobao.com/search?q=${kw}" target="_blank" class="shop-card">
+            <span class="shop-icon">🛒</span>
+            <div class="shop-info"><div class="shop-name">淘宝</div><div class="shop-kw">${keyword}</div></div>
+            <span class="shop-arrow">→</span>
+          </a>
+          <a href="https://mobile.yangkeduo.com/search_result.html?search_key=${kw}" target="_blank" class="shop-card">
+            <span class="shop-icon">📦</span>
+            <div class="shop-info"><div class="shop-name">拼多多</div><div class="shop-kw">${keyword}</div></div>
+            <span class="shop-arrow">→</span>
+          </a>
+          <a href="https://i.meituan.com/search?keyword=${kw}" target="_blank" class="shop-card">
+            <span class="shop-icon">🍜</span>
+            <div class="shop-info"><div class="shop-name">美团</div><div class="shop-kw">${keyword}</div></div>
+            <span class="shop-arrow">→</span>
+          </a>
+          <a href="https://search.jd.com/Search?enc=utf-8&keyword=${kw}" target="_blank" class="shop-card">
+            <span class="shop-icon">📱</span>
+            <div class="shop-info"><div class="shop-name">京东</div><div class="shop-kw">${keyword}</div></div>
+            <span class="shop-arrow">→</span>
+          </a>
+          <a href="https://www.google.com/search?q=${kw}" target="_blank" class="shop-card">
+            <span class="shop-icon">🔍</span>
+            <div class="shop-info"><div class="shop-name">全网搜索</div><div class="shop-kw">${keyword}</div></div>
+            <span class="shop-arrow">→</span>
+          </a>
+        </div>`;
+      const container = document.getElementById('m_' + aiMsgId);
+      if (container) {
+        container.insertAdjacentHTML('beforeend', shopHTML);
+      }
+    }
   }
   scrollBottom();
 }
