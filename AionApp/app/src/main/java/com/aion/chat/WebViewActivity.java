@@ -218,8 +218,19 @@ public class WebViewActivity extends AppCompatActivity {
         webView.addJavascriptInterface(new BleBridge(webView, this), "AionBle");
         webView.addJavascriptInterface(new AionRingBleBridge(webView, this), "AionRingBle");
 
-        // 页面导航桥接（子页面 iframe 关闭）
+        // 页面导航桥接（子页面 iframe 关闭 + 返回上一页）
         webView.addJavascriptInterface(new Object() {
+            @JavascriptInterface
+            public void goBack() {
+                mainHandler.post(() -> {
+                    if (webView.canGoBack()) {
+                        webView.goBack();
+                    } else {
+                        // 已经是最早的页面了，什么都不做
+                    }
+                });
+            }
+
             @JavascriptInterface
             public void closeSubPage() {
                 mainHandler.post(() -> {
