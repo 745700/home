@@ -68,6 +68,8 @@
     <input class="form-input" type="text" id="aiproKeyInput" placeholder="输入中转站 API Key..." autocomplete="off" style="font-family:monospace">
     <label class="form-label">网易云 MUSIC_U Cookie（VIP 点歌）</label>
     <input class="form-input" type="text" id="neteaseMusicUInput" placeholder="浏览器 F12 → Cookie → MUSIC_U" autocomplete="off" style="font-family:monospace">
+    <div id="diagPanel" style="display:none;margin:12px;padding:10px;background:#1a1a2e;border-radius:8px;font-size:12px;color:#0f0;font-family:monospace;line-height:1.8"></div>
+    <div class="btn-row" style="justify-content:flex-end"><button class="btn-save" type="button" onclick="runDiag()" style="background:#333">🔍 诊断</button></div>
     <div class="btn-row">
       <button class="btn-cancel" onclick="try{window.parent.closeSubPage()}catch(e){location.href='/'}">取消</button>
       <button class="btn-save" onclick="saveSettings()">保存</button>
@@ -88,6 +90,29 @@ connectCommonWS();
   results.push('parent.closeSubPage: ' + (window.parent && typeof window.parent.closeSubPage === 'function' ? '✓' : '✗ ' + typeof (window.parent && window.parent.closeSubPage)));
   results.push('location.href: ' + location.href);
   alert('诊断结果:\n' + results.join('\n'));
+})();
+
+// 诊断面板
+function runDiag() {
+  var el = document.getElementById('diagPanel');
+  var lines = [];
+  lines.push('api: ' + (typeof api === 'function' ? '✓' : '✗ typeof=' + typeof api));
+  lines.push('showToast: ' + (typeof showToast === 'function' ? '✓' : '✗ typeof=' + typeof showToast));
+  lines.push('localStorage: ' + (typeof localStorage !== 'undefined' ? '✓' : '✗'));
+  lines.push('window.parent: ' + (window.parent ? '✓' : '✗'));
+  lines.push('parent.closeSubPage: ' + (window.parent && typeof window.parent.closeSubPage === 'function' ? '✓' : '✗ typeof=' + typeof (window.parent && window.parent.closeSubPage)));
+  lines.push('window.top: ' + (window.top ? '✓' : '✗'));
+  lines.push('top.closeSubPage: ' + (window.top && typeof window.top.closeSubPage === 'function' ? '✓' : '✗ typeof=' + typeof (window.top && window.top.closeSubPage)));
+  lines.push('location.href: ' + location.href);
+  lines.push('window === window.top: ' + (window === window.top));
+  el.innerHTML = lines.join('<br>');
+  el.style.display = 'block';
+}
+
+(function diagnose() {
+  // alert 在 WebView 里被静默拦截，改用页面内显示
+  // 自动运行一次
+  setTimeout(runDiag, 800);
 })();
 
 (async function init() {
