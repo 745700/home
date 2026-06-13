@@ -3,594 +3,625 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>奥罗斯财团 - Aion</title>
+<title>💰 账本</title>
 <link rel="stylesheet" href="common.css">
-<link rel="manifest" href="manifest.json">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#ff8359">
 <style>
-/* ── 功能开关 ── */
-.fund-toggle {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 14px; background: var(--surface); border: 1px solid var(--border);
-  border-radius: 10px; margin-bottom: 12px;
-}
-.fund-toggle .label { font-size: 14px; font-weight: 600; color: var(--text); }
-.fund-toggle .status { font-size: 12px; color: var(--text3); margin-left: 8px; }
-.switch { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
-.switch input { opacity: 0; width: 0; height: 0; }
-.switch .slider {
-  position: absolute; inset: 0; background: #ccc; border-radius: 24px;
-  cursor: pointer; transition: 0.3s;
-}
-.switch .slider::before {
-  content: ''; position: absolute; left: 2px; top: 2px;
-  width: 20px; height: 20px; background: #fff; border-radius: 50%;
-  transition: 0.3s;
-}
-.switch input:checked + .slider { background: var(--accent); }
-.switch input:checked + .slider::before { transform: translateX(20px); }
+body { background: #f5f5f5; }
+.sub-page { background: #f5f5f5; }
+.top-bar { background: rgba(255,255,255,0.95); border-bottom: 1px solid #eee; }
+.back-btn { color: #333; }
+.top-bar h2 { color: #333; }
 
-/* ── 操作按钮组 ── */
-.action-row {
-  display: flex; gap: 8px; margin-bottom: 14px;
+.tab-bar {
+  display: flex;
+  background: white;
+  border-bottom: 1px solid #eee;
+  position: sticky;
+  top: 50px;
+  z-index: 10;
 }
-.action-btn {
-  flex: 1; padding: 10px 0; border: none; border-radius: 10px;
-  font-size: 13px; font-weight: 600; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  transition: opacity 0.2s;
+.tab-bar .tab {
+  flex: 1;
+  text-align: center;
+  padding: 12px 0;
+  font-size: 14px;
+  color: #888;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
 }
-.action-btn:active { opacity: 0.7; }
-.action-btn.primary { background: var(--accent); color: #fff; }
-.action-btn.secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
-.action-btn:disabled { opacity: 0.5; cursor: default; }
+.tab-bar .tab.active {
+  color: #ff6b6b;
+  border-bottom-color: #ff6b6b;
+}
 
-/* ── 持仓列表 ── */
+/* 总览 */
+.overview-card {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  margin: 12px;
+  border-radius: 16px;
+  padding: 20px 16px;
+  text-align: center;
+}
+.overview-card .balance-label { font-size: 13px; opacity: 0.8; }
+.overview-card .balance-amount { font-size: 36px; font-weight: 700; margin: 4px 0; }
+.overview-card .income-expense { display: flex; justify-content: space-around; margin-top: 12px; font-size: 13px; }
+.overview-card .income-expense .ie-item { text-align: center; }
+.overview-card .income-expense .ie-val { font-size: 16px; font-weight: 600; margin-top: 2px; }
+.overview-card .income-expense .ie-val.income { color: #90EE90; }
+.overview-card .income-expense .ie-val.expense { color: #FFB6C1; }
+
+/* 账户列表 */
 .section-title {
-  font-size: 13px; font-weight: 600; color: var(--text2);
-  margin: 16px 0 8px; display: flex; align-items: center; gap: 6px;
+  font-size: 13px;
+  color: #888;
+  padding: 12px 16px 6px;
+  font-weight: 500;
 }
-.holding-list {
-  border: 1px solid var(--border); border-radius: 10px;
-  background: var(--bg); overflow: hidden;
+.account-card {
+  background: white;
+  margin: 0 12px 8px;
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
 }
-.holding-item {
-  padding: 12px 14px; border-bottom: 1px solid var(--border);
+.account-card .acc-icon { font-size: 28px; }
+.account-card .acc-info { flex: 1; }
+.account-card .acc-name { font-size: 15px; font-weight: 500; color: #333; }
+.account-card .acc-note { font-size: 12px; color: #aaa; margin-top: 2px; }
+.account-card .acc-balance { font-size: 16px; font-weight: 600; color: #333; }
+
+/* 账单 */
+.bill-item {
+  background: white;
+  margin: 0 12px 6px;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.bill-item .bill-icon { font-size: 24px; width: 40px; text-align: center; }
+.bill-item .bill-info { flex: 1; }
+.bill-item .bill-title { font-size: 14px; color: #333; }
+.bill-item .bill-date { font-size: 11px; color: #aaa; margin-top: 2px; }
+.bill-item .bill-amount { font-size: 15px; font-weight: 600; }
+.bill-item .bill-amount.income { color: #4CAF50; }
+.bill-item .bill-amount.expense { color: #FF5252; }
+
+/* 红包 */
+.redpacket-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 12px;
+}
+.redpacket-card {
+  background: linear-gradient(135deg, #ff6b6b, #ff8e53);
+  border-radius: 12px;
+  padding: 16px;
+  color: white;
+  text-align: center;
+  cursor: pointer;
   position: relative;
 }
-.holding-item:last-child { border-bottom: none; }
-.holding-header {
-  display: flex; align-items: center; justify-content: space-between;
-}
-.holding-name { font-size: 14px; font-weight: 600; color: var(--text); }
-.holding-code { font-size: 11px; color: var(--text3); margin-left: 6px; }
-.holding-actions {
-  display: flex; gap: 4px;
-}
-.holding-actions button {
-  background: none; border: none; font-size: 14px; cursor: pointer;
-  padding: 2px 4px; opacity: 0.5;
-}
-.holding-actions button:hover { opacity: 1; }
-.holding-details {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px;
-  margin-top: 8px; font-size: 12px; color: var(--text2);
-}
-.holding-details .val { color: var(--text); font-weight: 500; }
-.profit-pos { color: #e53935; }
-.profit-neg { color: #43a047; }
-.alert-tag {
-  display: inline-block; font-size: 10px; padding: 2px 6px;
-  border-radius: 4px; margin-top: 4px;
-  background: #fff3e0; color: #e65100;
+.redpacket-card.used { opacity: 0.5; }
+.redpacket-card .rp-title { font-size: 13px; font-weight: 500; margin-bottom: 6px; }
+.redpacket-card .rp-amount { font-size: 22px; font-weight: 700; }
+.redpacket-card .rp-label { font-size: 11px; opacity: 0.8; margin-top: 4px; }
+.redpacket-card .rp-badge {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  background: rgba(255,255,255,0.3);
+  border-radius: 10px;
+  padding: 1px 6px;
+  font-size: 10px;
 }
 
-.holding-empty {
-  padding: 24px; text-align: center; color: var(--text3); font-size: 14px;
-}
-
-/* ── 添加持仓表单 ── */
-.add-form {
-  border: 1px solid var(--border); border-radius: 10px;
-  background: var(--surface); padding: 14px; margin-top: 12px;
+/* 对话框 */
+.dialog-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 100;
   display: none;
+  align-items: flex-end;
+  justify-content: center;
 }
-.add-form.show { display: block; }
-.add-form .form-row {
-  display: flex; gap: 8px; margin-bottom: 8px;
+.dialog-overlay.show { display: flex; }
+.dialog-sheet {
+  background: white;
+  border-radius: 16px 16px 0 0;
+  width: 100%;
+  max-width: 500px;
+  padding: 16px 16px 32px;
+  animation: slideUp 0.25s ease;
 }
-.add-form input {
-  flex: 1; background: var(--surface2); color: var(--text);
-  border: 1px solid var(--border); border-radius: 8px;
-  padding: 8px 10px; font-size: 13px; outline: none;
-  min-width: 0;
-}
-.add-form .form-actions {
-  display: flex; gap: 8px; justify-content: flex-end;
-}
-.add-form .form-actions button {
-  padding: 8px 16px; border: none; border-radius: 8px;
-  font-size: 13px; cursor: pointer;
-}
-.add-form .btn-save { background: var(--accent); color: #fff; }
-.add-form .btn-cancel { background: var(--surface2); color: var(--text); }
+.dialog-title { font-size: 16px; font-weight: 600; text-align: center; margin-bottom: 16px; color: #333; }
+.dialog-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.dialog-label { font-size: 13px; color: #666; width: 60px; flex-shrink: 0; }
+.dialog-input { flex: 1; border: 1px solid #ddd; border-radius: 8px; padding: 8px 12px; font-size: 14px; outline: none; }
+.dialog-input:focus { border-color: #ff6b6b; }
+.dialog-actions { display: flex; gap: 10px; margin-top: 16px; }
+.btn-cancel { flex: 1; background: #f0f0f0; color: #666; border: none; border-radius: 10px; padding: 12px; font-size: 15px; cursor: pointer; }
+.btn-confirm { flex: 1; background: #ff6b6b; color: white; border: none; border-radius: 10px; padding: 12px; font-size: 15px; cursor: pointer; }
 
-/* ── 投资倾向 ── */
-.tendency-section {
-  margin-top: 14px; border: 1px solid var(--border); border-radius: 10px;
-  background: var(--surface); padding: 14px;
+.category-picker {
+  display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;
 }
-.tendency-section textarea {
-  width: 100%; min-height: 60px; background: var(--surface2);
-  color: var(--text); border: 1px solid var(--border); border-radius: 8px;
-  padding: 8px 10px; font-size: 13px; outline: none; resize: vertical;
-  font-family: inherit;
+.cat-btn {
+  padding: 6px 12px; border-radius: 16px; font-size: 13px;
+  border: 1px solid #ddd; background: white; cursor: pointer; color: #333;
 }
-.tendency-section .save-row {
-  display: flex; justify-content: flex-end; margin-top: 8px;
-}
-.tendency-section .save-row button {
-  padding: 6px 14px; border: none; border-radius: 8px;
-  background: var(--accent); color: #fff; font-size: 12px; cursor: pointer;
-}
+.cat-btn.selected { background: #ff6b6b; color: white; border-color: #ff6b6b; }
 
-/* ── 市场数据卡片 ── */
-.market-card {
-  border: 1px solid var(--border); border-radius: 10px;
-  background: var(--surface); padding: 14px; margin-top: 12px;
-  display: none;
-}
-.market-card.show { display: block; }
-.market-card .fetch-time {
-  font-size: 11px; color: var(--text3); margin-bottom: 8px;
-}
-.market-card .index-row {
-  font-size: 13px; color: var(--text);
-  padding: 6px 0; border-bottom: 1px solid var(--border);
-  margin-bottom: 8px;
-}
-.market-card .fund-row {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 6px 0; font-size: 13px;
-}
-.market-card .fund-row + .fund-row { border-top: 1px solid var(--border); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
 
-/* ── 编辑弹窗 ── */
-.edit-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.4);
-  display: none; align-items: center; justify-content: center; z-index: 100;
+.add-btn-fixed {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff6b6b, #ff8e53);
+  border: none;
+  color: white;
+  font-size: 24px;
+  box-shadow: 0 4px 16px rgba(255,107,107,0.4);
+  cursor: pointer;
+  z-index: 50;
 }
-.edit-overlay.show { display: flex; }
-.edit-panel {
-  background: var(--surface); border-radius: 14px; padding: 20px;
-  width: 90%; max-width: 360px; box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: #aaa;
+  font-size: 14px;
 }
-.edit-panel h3 { font-size: 16px; margin-bottom: 14px; color: var(--text); }
-.edit-panel .form-row { display: flex; gap: 8px; margin-bottom: 8px; }
-.edit-panel input {
-  flex: 1; background: var(--surface2); color: var(--text);
-  border: 1px solid var(--border); border-radius: 8px;
-  padding: 8px 10px; font-size: 13px; outline: none; min-width: 0;
-}
-.edit-panel .form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
-.edit-panel .form-actions button { padding: 8px 16px; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
-.edit-panel .btn-save { background: var(--accent); color: #fff; }
-.edit-panel .btn-cancel { background: var(--surface2); color: var(--text); }
-
-/* ── Loading 遮罩 ── */
-.loading-mask {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.3);
-  display: none; align-items: center; justify-content: center; z-index: 200;
-}
-.loading-mask.show { display: flex; }
-.loading-spinner {
-  background: var(--surface); border-radius: 14px; padding: 24px 32px;
-  text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-}
-.loading-spinner .dots { font-size: 20px; }
-.loading-spinner .text { font-size: 13px; color: var(--text2); margin-top: 8px; }
-@keyframes blink { 0%,80%,100%{opacity:0} 40%{opacity:1} }
-.loading-spinner .dots span {
-  animation: blink 1.4s infinite both;
-  display: inline-block;
-}
-.loading-spinner .dots span:nth-child(2) { animation-delay: 0.2s; }
-.loading-spinner .dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 </style>
 </head>
 <body>
 <div class="sub-page">
   <div class="top-bar">
     <button class="back-btn" onclick="AionNavigator.goBack()">⬅</button>
-    <h2>💰 奥罗斯财团</h2>
+    <h2>💰 账本</h2>
   </div>
-  <div class="page-content">
 
-    <!-- 功能开关 -->
-    <div class="fund-toggle">
-      <div>
-        <span class="label">基金监控</span>
-        <span class="status" id="toggleStatus">每日 14:45 自动分析</span>
-      </div>
-      <label class="switch">
-        <input type="checkbox" id="enableToggle" checked onchange="toggleEnabled()">
-        <span class="slider"></span>
-      </label>
-    </div>
+  <div class="tab-bar">
+    <div class="tab active" onclick="switchTab('overview')">总览</div>
+    <div class="tab" onclick="switchTab('accounts')">账户</div>
+    <div class="tab" onclick="switchTab('bills')">账单</div>
+    <div class="tab" onclick="switchTab('redpackets')">红包</div>
+  </div>
 
-    <!-- 操作按钮 -->
-    <div class="action-row">
-      <button class="action-btn primary" id="btnAnalyze" onclick="doAnalyze()">📊 立即分析</button>
-      <button class="action-btn secondary" id="btnFetch" onclick="doFetch()">🔄 刷新数据</button>
-      <button class="action-btn secondary" onclick="toggleAddForm()">➕ 添加</button>
-    </div>
-
-    <!-- 市场数据速览 -->
-    <div class="market-card" id="marketCard">
-      <div class="fetch-time" id="fetchTime"></div>
-      <div class="index-row" id="indexRow"></div>
-      <div id="marketFunds"></div>
-    </div>
-
-    <!-- 持仓列表 -->
-    <div class="section-title" style="cursor:pointer;user-select:none" onclick="toggleHoldings()">
-      <span>📋 我的持仓</span>
-      <span id="holdingToggleIcon" style="font-size:12px;margin-left:4px;transition:transform 0.2s">▼</span>
-      <span id="holdingCount" style="font-size:11px;color:var(--text3);margin-left:auto"></span>
-    </div>
-    <div id="holdingWrap">
-      <div class="holding-list" id="holdingList">
-        <div class="holding-empty">暂无持仓，点击「添加」录入基金</div>
+  <!-- 总览 -->
+  <div class="tab-content active" id="tab-overview">
+    <div class="overview-card">
+      <div class="balance-label">💵 总资产</div>
+      <div class="balance-amount" id="totalBalance">¥0.00</div>
+      <div class="income-expense">
+        <div class="ie-item"><div class="income-expense">本月收入</div><div class="ie-val income" id="monthIncome">+¥0</div></div>
+        <div class="ie-item"><div class="income-expense">本月支出</div><div class="ie-val expense" id="monthExpense">-¥0</div></div>
       </div>
     </div>
+    <div class="section-title">📊 本月消费分类</div>
+    <div id="categorySummary" style="padding:0 12px;"></div>
+  </div>
 
-    <!-- 添加持仓表单 -->
-    <div class="add-form" id="addForm">
-      <div class="section-title" style="margin-top:0">添加持仓</div>
-      <div class="form-row">
-        <input id="addCode" placeholder="基金代码（如 110011）">
-        <input id="addName" placeholder="基金名称">
-      </div>
-      <div class="form-row">
-        <input id="addShares" type="number" step="0.01" placeholder="持仓份额">
-        <input id="addCost" type="number" step="0.0001" placeholder="平均买入净值">
-      </div>
-      <div class="form-row">
-        <input id="addTotal" type="number" step="0.01" placeholder="买入总成本（元）">
-      </div>
-      <div class="form-row" style="align-items:center">
-        <label style="font-size:12px;color:var(--text2);white-space:nowrap;flex-shrink:0">跌幅预警%</label>
-        <input id="addWarnDown" type="number" step="0.1" value="-3">
-        <label style="font-size:12px;color:var(--text2);white-space:nowrap;flex-shrink:0">涨幅预警%</label>
-        <input id="addWarnUp" type="number" step="0.1" value="15">
-      </div>
-      <div class="form-actions">
-        <button class="btn-cancel" onclick="toggleAddForm()">取消</button>
-        <button class="btn-save" onclick="addHolding()">保存</button>
-      </div>
-    </div>
+  <!-- 账户 -->
+  <div class="tab-content" id="tab-accounts">
+    <div class="section-title">我的账户</div>
+    <div id="accountList"></div>
+    <div class="empty-state" id="accountEmpty" style="display:none">还没有账户，添加一个吧～</div>
+  </div>
 
-    <!-- 投资倾向 -->
-    <div class="tendency-section">
-      <div class="section-title" style="margin-top:0">📝 我的投资计划与倾向</div>
-      <textarea id="tendencyText" placeholder="例如：最近计划买入黄金ETF，在等一个合适的回调坑位..."></textarea>
-      <div class="save-row">
-        <button onclick="saveTendency()">保存</button>
-      </div>
-    </div>
+  <!-- 账单 -->
+  <div class="tab-content" id="tab-bills">
+    <div class="section-title">📋 收支记录</div>
+    <div id="billList"></div>
+    <div class="empty-state" id="billEmpty" style="display:none">还没有账单记录</div>
+  </div>
 
+  <!-- 红包 -->
+  <div class="tab-content" id="tab-redpackets">
+    <div class="section-title">🧧 我的红包</div>
+    <div id="redpacketList" class="redpacket-grid"></div>
+    <div class="empty-state" id="redpacketEmpty" style="display:none">还没有红包</div>
   </div>
 </div>
 
-<!-- 编辑弹窗 -->
-<div class="edit-overlay" id="editOverlay">
-  <div class="edit-panel">
-    <h3>编辑持仓</h3>
-    <input type="hidden" id="editId">
-    <div class="form-row">
-      <input id="editName" placeholder="基金名称">
-    </div>
-    <div class="form-row">
-      <input id="editShares" type="number" step="0.01" placeholder="持仓份额">
-      <input id="editAvgCost" type="number" step="0.0001" placeholder="平均成本">
-    </div>
-    <div class="form-row">
-      <input id="editTotal" type="number" step="0.01" placeholder="总成本（元）">
-    </div>
-    <div class="form-row">
-      <input id="editWarnDown" type="number" step="0.1" placeholder="跌幅预警%">
-      <input id="editWarnUp" type="number" step="0.1" placeholder="涨幅预警%">
-    </div>
-    <div class="form-actions">
-      <button class="btn-cancel" onclick="closeEdit()">取消</button>
-      <button class="btn-save" onclick="saveEdit()">保存</button>
-    </div>
-  </div>
-</div>
+<!-- 悬浮添加按钮 -->
+<button class="add-btn-fixed" id="addBtnFixed" onclick="showAddDialog()">+</button>
 
-<!-- Loading -->
-<div class="loading-mask" id="loadingMask">
-  <div class="loading-spinner">
-    <div class="dots"><span>●</span><span>●</span><span>●</span></div>
-    <div class="text" id="loadingText">正在拉取数据...</div>
+<!-- 添加对话框 -->
+<div class="dialog-overlay" id="addDialog">
+  <div class="dialog-sheet">
+    <div class="dialog-title" id="dialogTitle">记一笔</div>
+
+    <!-- 添加账户 -->
+    <div id="dialogAccount" style="display:none">
+      <div class="dialog-row">
+        <div class="dialog-label">名称</div>
+        <input class="dialog-input" id="accNameInput" placeholder="如：微信钱包">
+      </div>
+      <div class="dialog-row">
+        <div class="dialog-label">余额</div>
+        <input class="dialog-input" id="accBalanceInput" placeholder="0.00" type="number" step="0.01">
+      </div>
+      <div class="dialog-row">
+        <div class="dialog-label">图标</div>
+        <div class="category-picker" id="accIconPicker"></div>
+      </div>
+    </div>
+
+    <!-- 添加账单 -->
+    <div id="dialogBill" style="display:none">
+      <div class="dialog-row">
+        <div class="dialog-label">金额</div>
+        <input class="dialog-input" id="billAmountInput" placeholder="0.00" type="number" step="0.01">
+      </div>
+      <div class="dialog-row">
+        <div class="dialog-label">类型</div>
+        <div style="display:flex;gap:8px;flex:1">
+          <button class="cat-btn selected" id="typeExpense" onclick="setBillType('expense')" style="flex:1">支出</button>
+          <button class="cat-btn" id="typeIncome" onclick="setBillType('income')" style="flex:1">收入</button>
+        </div>
+      </div>
+      <div class="dialog-row">
+        <div class="dialog-label">分类</div>
+        <div class="category-picker" id="catPicker"></div>
+      </div>
+      <div class="dialog-row">
+        <div class="dialog-label">账户</div>
+        <select class="dialog-input" id="billAccountSelect"></select>
+      </div>
+      <div class="dialog-row">
+        <div class="dialog-label">备注</div>
+        <input class="dialog-input" id="billNoteInput" placeholder="可选备注">
+      </div>
+    </div>
+
+    <!-- 红包 -->
+    <div id="dialogRedpacket" style="display:none">
+      <div class="dialog-row">
+        <div class="dialog-label">总金额</div>
+        <input class="dialog-input" id="rpAmountInput" placeholder="100.00" type="number" step="0.01">
+      </div>
+      <div class="dialog-row">
+        <div class="dialog-label">红包数</div>
+        <input class="dialog-input" id="rpCountInput" placeholder="5" type="number" min="1">
+      </div>
+      <div class="dialog-row">
+        <div class="dialog-label">祝福语</div>
+        <input class="dialog-input" id="rpWishInput" placeholder="恭喜发财，大吉大利">
+      </div>
+    </div>
+
+    <div class="dialog-actions">
+      <button class="btn-cancel" onclick="closeAddDialog()">取消</button>
+      <button class="btn-confirm" id="dialogConfirmBtn" onclick="confirmAddDialog()">确定</button>
+    </div>
   </div>
 </div>
 
 <script src="common.js"></script>
 <script>
-connectCommonWS();
+const ACC_ICONS = ['💰','💳','🏦','💵','🪙','🎁','💖','🏠','🚗'];
+const EXPENSE_CATS = [
+  {icon:'🍜',name:'餐饮'},{icon:'🚗',name:'交通'},{icon:'🛒',name:'购物'},
+  {icon:'🎮',name:'娱乐'},{icon:'📱',name:'通讯'},{icon:'🏠',name:'居住'},
+  {icon:'💊',name:'医疗'},{icon:'📚',name:'教育'},{icon:'🎁',name:'人情'},
+  {icon:'☁️',name:'衣服'},{icon:'✂️',name:'美容'},{icon:'📦',name:'其它'},
+];
+const INCOME_CATS = [
+  {icon:'💰',name:'工资'},{icon:'🎁',name:'奖金'},{icon:'💵',name:'外快'},
+  {icon:'💰',name:'理财'},{icon:'🎁',name:'红包'},{icon:'📦',name:'其它'},
+];
 
-let holdings = [];
-let marketData = null;
+let _dialogMode = 'bill'; // 'account' | 'bill' | 'redpacket'
+let _billType = 'expense';
+let _selectedCat = '餐饮';
+let _accounts = [];
+let _bills = [];
+let _redpackets = [];
 
-(async function init() {
-  await loadConfig();
-  await loadHoldings();
-  await loadCache();
-})();
+// Storage keys
+const ACC_KEY = 'aion_fund_accounts';
+const BILL_KEY = 'aion_fund_bills';
+const RP_KEY = 'aion_fund_redpackets';
 
-/* ── 加载缓存数据 ── */
-async function loadCache() {
-  try {
-    const data = await api("GET", "/api/fund/cache");
-    if (data && data.fetch_time) {
-      marketData = data;
-      renderMarketCard();
-      renderHoldings();
-    }
-  } catch(e) { console.error(e); }
+function _load() {
+  try { _accounts = JSON.parse(localStorage.getItem(ACC_KEY) || '[]'); } catch { _accounts = []; }
+  try { _bills = JSON.parse(localStorage.getItem(BILL_KEY) || '[]'); } catch { _bills = []; }
+  try { _redpackets = JSON.parse(localStorage.getItem(RP_KEY) || '[]'); } catch { _redpackets = []; }
+}
+function _save() {
+  localStorage.setItem(ACC_KEY, JSON.stringify(_accounts));
+  localStorage.setItem(BILL_KEY, JSON.stringify(_bills));
+  localStorage.setItem(RP_KEY, JSON.stringify(_redpackets));
 }
 
-/* ── 配置 ── */
-async function loadConfig() {
-  try {
-    const cfg = await api("GET", "/api/fund/config");
-    $("enableToggle").checked = cfg.enabled !== false;
-    $("tendencyText").value = cfg.tendency || "";
-    updateToggleStatus(cfg.enabled !== false, cfg.is_trading_day);
-  } catch(e) { console.error(e); }
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.querySelector(`.tab[onclick*="${tab}"]`).classList.add('active');
+  document.getElementById('tab-' + tab).classList.add('active');
+
+  const addBtn = document.getElementById('addBtnFixed');
+  addBtn.style.display = (tab === 'redpackets') ? 'none' : 'flex';
+
+  if (tab === 'overview') renderOverview();
+  else if (tab === 'accounts') renderAccounts();
+  else if (tab === 'bills') renderBills();
+  else if (tab === 'redpackets') renderRedpackets();
 }
 
-function updateToggleStatus(enabled, isTradingDay) {
-  const s = $("toggleStatus");
-  if (!enabled) {
-    s.textContent = "功能已关闭";
-  } else if (isTradingDay) {
-    s.textContent = "每日 14:45 自动分析（今日交易日）";
+function renderOverview() {
+  const total = _accounts.reduce((s, a) => s + (parseFloat(a.balance) || 0), 0);
+  document.getElementById('totalBalance').textContent = '¥' + total.toFixed(2);
+
+  const now = new Date();
+  const monthStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+  const monthBills = _bills.filter(b => b.date.startsWith(monthStr));
+  const income = monthBills.filter(b => b.type === 'income').reduce((s, b) => s + parseFloat(b.amount), 0);
+  const expense = monthBills.filter(b => b.type === 'expense').reduce((s, b) => s + parseFloat(b.amount), 0);
+  document.getElementById('monthIncome').textContent = '+¥' + income.toFixed(0);
+  document.getElementById('monthExpense').textContent = '-¥' + expense.toFixed(0);
+
+  // 分类统计
+  const catTotals = {};
+  monthBills.filter(b => b.type === 'expense').forEach(b => {
+    catTotals[b.category] = (catTotals[b.category] || 0) + parseFloat(b.amount);
+  });
+  const sorted = Object.entries(catTotals).sort((a,b) => b[1]-a[1]).slice(0, 5);
+  const catEl = document.getElementById('categorySummary');
+  if (sorted.length === 0) {
+    catEl.innerHTML = '<div class="empty-state">本月暂无支出记录</div>';
   } else {
-    s.textContent = "每日 14:45 自动分析（今日非交易日）";
+    const max = sorted[0][1];
+    catEl.innerHTML = sorted.map(([cat, amt]) => {
+      const catInfo = EXPENSE_CATS.find(c => c.name === cat) || {icon:'📦',name:cat};
+      const pct = Math.round(amt / max * 100);
+      return `<div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:#555;margin-bottom:4px">
+          <span>${catInfo.icon} ${catInfo.name}</span><span style="color:#FF5252">-¥${amt.toFixed(1)}</span>
+        </div>
+        <div style="height:6px;background:#eee;border-radius:3px"><div style="height:100%;width:${pct}%;background:#FF5252;border-radius:3px"></div></div>
+      </div>`;
+    }).join('');
   }
 }
 
-async function toggleEnabled() {
-  const enabled = $("enableToggle").checked;
-  try {
-    const cfg = await api("POST", "/api/fund/config", { enabled });
-    updateToggleStatus(enabled, cfg.is_trading_day);
-    showToast(enabled ? "✅ 已开启" : "已关闭");
-  } catch(e) { console.error(e); }
-}
-
-async function saveTendency() {
-  const tendency = $("tendencyText").value.trim();
-  try {
-    await api("POST", "/api/fund/config", { tendency });
-    showToast("✅ 已保存");
-  } catch(e) { alert("保存失败"); }
-}
-
-/* ── 持仓 ── */
-let holdingsCollapsed = false;
-
-function toggleHoldings() {
-  holdingsCollapsed = !holdingsCollapsed;
-  $("holdingWrap").style.display = holdingsCollapsed ? "none" : "";
-  $("holdingToggleIcon").style.transform = holdingsCollapsed ? "rotate(-90deg)" : "";
-}
-
-async function loadHoldings() {
-  try {
-    holdings = await api("GET", "/api/fund/holdings");
-    renderHoldings();
-  } catch(e) { console.error(e); }
-}
-
-function renderHoldings() {
-  const el = $("holdingList");
-  const countEl = $("holdingCount");
-  if (countEl) countEl.textContent = holdings?.length ? `${holdings.length}只` : "";
-  if (!holdings || !holdings.length) {
-    el.innerHTML = '<div class="holding-empty">暂无持仓，点击「添加」录入基金</div>';
+function renderAccounts() {
+  const el = document.getElementById('accountList');
+  const empty = document.getElementById('accountEmpty');
+  if (_accounts.length === 0) {
+    el.innerHTML = '';
+    empty.style.display = 'block';
     return;
   }
-  el.innerHTML = holdings.map(h => {
-    const profit = marketData?.funds?.find(f => f.fund_code === h.fund_code);
-    let profitHtml = '';
-    if (profit && profit.profit !== null) {
-      const cls = profit.profit >= 0 ? 'profit-pos' : 'profit-neg';
-      const sign = profit.profit >= 0 ? '+' : '';
-      profitHtml = `
-        <div class="holding-details">
-          <div>最新净值：<span class="val">${profit.latest_nav?.toFixed(4) ?? '-'}</span></div>
-          <div>今日涨跌：<span class="val ${cls}">${profit.day_change_pct !== null ? (profit.day_change_pct >= 0 ? '+' : '') + profit.day_change_pct + '%' : '-'}</span></div>
-          <div>当前市值：<span class="val">${profit.market_value?.toFixed(2) ?? '-'}元</span></div>
-          <div>浮盈亏：<span class="val ${cls}">${sign}${profit.profit?.toFixed(2) ?? '-'}元 (${sign}${profit.profit_pct?.toFixed(2) ?? '-'}%)</span></div>
-        </div>
-        ${profit.alert ? `<div class="alert-tag">⚠️ ${escHtml(profit.alert)}</div>` : ''}
-      `;
-    }
-    return `<div class="holding-item">
-      <div class="holding-header">
-        <div>
-          <span class="holding-name">${escHtml(h.fund_name || h.fund_code)}</span>
-          <span class="holding-code">${escHtml(h.fund_code)}</span>
-        </div>
-        <div class="holding-actions">
-          <button onclick="openEdit('${h.id}')" title="编辑">✏️</button>
-          <button onclick="deleteHolding('${h.id}')" title="删除">🗑️</button>
-        </div>
+  empty.style.display = 'none';
+  el.innerHTML = _accounts.map((a, i) => `
+    <div class="account-card" onclick="editAccount(${i})">
+      <div class="acc-icon">${a.icon || '💰'}</div>
+      <div class="acc-info">
+        <div class="acc-name">${escHtml(a.name)}</div>
+        <div class="acc-note">${escHtml(a.note || '')}</div>
       </div>
-      <div class="holding-details">
-        <div>份额：<span class="val">${h.shares}</span></div>
-        <div>均价：<span class="val">${Number(h.avg_cost).toFixed(4)}</span></div>
-        <div>总成本：<span class="val">${Number(h.total_cost).toFixed(2)}元</span></div>
-        <div>预警：<span class="val">${h.warn_down}% / +${h.warn_up}%</span></div>
+      <div class="acc-balance">¥${(parseFloat(a.balance)||0).toFixed(2)}</div>
+    </div>
+  `).join('');
+}
+
+function renderBills() {
+  const el = document.getElementById('billList');
+  const empty = document.getElementById('billEmpty');
+  const sorted = [..._bills].sort((a,b) => b._id - a._id);
+  if (sorted.length === 0) {
+    el.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  el.innerHTML = sorted.map(b => {
+    const cat = [...EXPENSE_CATS, ...INCOME_CATS].find(c => c.name === b.category) || {icon:'📦',name:b.category};
+    const sign = b.type === 'income' ? '+' : '-';
+    return `<div class="bill-item" onclick="deleteBill('${b._id}')">
+      <div class="bill-icon">${cat.icon}</div>
+      <div class="bill-info">
+        <div class="bill-title">${escHtml(b.category)} ${b.note ? '<span style="color:#aaa">· '+escHtml(b.note)+'</span>' : ''}</div>
+        <div class="bill-date">${b.date} · ${escHtml(b.accountName || '')}</div>
       </div>
-      ${profitHtml}
+      <div class="bill-amount ${b.type}">${sign}¥${parseFloat(b.amount).toFixed(2)}</div>
     </div>`;
   }).join('');
 }
 
-function toggleAddForm() {
-  $("addForm").classList.toggle("show");
-}
-
-async function addHolding() {
-  const code = $("addCode").value.trim();
-  if (!code) { alert("请输入基金代码"); return; }
-  const body = {
-    fund_code: code,
-    fund_name: $("addName").value.trim(),
-    shares: parseFloat($("addShares").value) || 0,
-    avg_cost: parseFloat($("addCost").value) || 0,
-    total_cost: parseFloat($("addTotal").value) || 0,
-    warn_down: parseFloat($("addWarnDown").value) || -3,
-    warn_up: parseFloat($("addWarnUp").value) || 15,
-  };
-  try {
-    await api("POST", "/api/fund/holdings", body);
-    $("addCode").value = ""; $("addName").value = "";
-    $("addShares").value = ""; $("addCost").value = "";
-    $("addTotal").value = "";
-    $("addForm").classList.remove("show");
-    loadHoldings();
-    showToast("✅ 已添加");
-  } catch(e) { alert("添加失败"); }
-}
-
-function openEdit(id) {
-  const h = holdings.find(x => x.id === id);
-  if (!h) return;
-  $("editId").value = h.id;
-  $("editName").value = h.fund_name || "";
-  $("editShares").value = h.shares;
-  $("editAvgCost").value = h.avg_cost;
-  $("editTotal").value = h.total_cost;
-  $("editWarnDown").value = h.warn_down;
-  $("editWarnUp").value = h.warn_up;
-  $("editOverlay").classList.add("show");
-}
-
-function closeEdit() {
-  $("editOverlay").classList.remove("show");
-}
-
-async function saveEdit() {
-  const id = $("editId").value;
-  const body = {
-    fund_name: $("editName").value.trim(),
-    shares: parseFloat($("editShares").value) || 0,
-    avg_cost: parseFloat($("editAvgCost").value) || 0,
-    total_cost: parseFloat($("editTotal").value) || 0,
-    warn_down: parseFloat($("editWarnDown").value) || -3,
-    warn_up: parseFloat($("editWarnUp").value) || 15,
-  };
-  try {
-    await api("PUT", `/api/fund/holdings/${id}`, body);
-    closeEdit();
-    loadHoldings();
-    showToast("✅ 已保存");
-  } catch(e) { alert("保存失败"); }
-}
-
-async function deleteHolding(id) {
-  if (!confirm("确定删除此持仓？")) return;
-  try {
-    await api("DELETE", `/api/fund/holdings/${id}`);
-    loadHoldings();
-    showToast("已删除");
-  } catch(e) { alert("删除失败"); }
-}
-
-/* ── 数据拉取 ── */
-async function doFetch() {
-  const btn = $("btnFetch");
-  btn.disabled = true;
-  btn.textContent = "⏳ 拉取中...";
-  showToast("正在拉取最新数据...");
-  try {
-    marketData = await api("POST", "/api/fund/fetch");
-    renderMarketCard();
-    renderHoldings();
-    showToast("✅ 数据已刷新");
-  } catch(e) {
-    showToast("❌ 拉取失败");
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "🔄 刷新数据";
+function renderRedpackets() {
+  const el = document.getElementById('redpacketList');
+  const empty = document.getElementById('redpacketEmpty');
+  if (_redpackets.length === 0) {
+    el.innerHTML = '';
+    empty.style.display = 'block';
+    return;
   }
+  empty.style.display = 'none';
+  el.innerHTML = _redpackets.map((rp, i) => `
+    <div class="redpacket-card ${rp.used ? 'used' : ''}" onclick="openRedpacket(${i})">
+      <div class="rp-badge">${rp.used ? '已用' : '未开'}</div>
+      <div class="rp-title">🧧 ${escHtml(rp.wish || '恭喜发财')}</div>
+      <div class="rp-amount">¥${parseFloat(rp.amount).toFixed(2)}</div>
+      <div class="rp-label">${rp.count}个红包 · ${rp.opened||0}人已开</div>
+    </div>
+  `).join('');
 }
 
-function renderMarketCard() {
-  if (!marketData) return;
-  const card = $("marketCard");
-  card.classList.add("show");
-  $("fetchTime").textContent = "数据时间：" + (marketData.fetch_time || "").replace("T", " ").split(".")[0];
+// 对话框
+function showAddDialog(mode) {
+  _dialogMode = mode || 'bill';
+  document.getElementById('dialogAccount').style.display = 'none';
+  document.getElementById('dialogBill').style.display = 'none';
+  document.getElementById('dialogRedpacket').style.display = 'none';
 
-  if (marketData.index) {
-    const idx = marketData.index;
-    const sign = idx.change_pct >= 0 ? "+" : "";
-    const cls = idx.change_pct >= 0 ? "profit-pos" : "profit-neg";
-    $("indexRow").innerHTML = `${idx.name}：<span class="${cls}">${sign}${idx.change_pct}%</span>`;
+  if (_dialogMode === 'account') {
+    document.getElementById('dialogTitle').textContent = '添加账户';
+    document.getElementById('dialogAccount').style.display = 'block';
+    document.getElementById('accNameInput').value = '';
+    document.getElementById('accBalanceInput').value = '';
+    renderAccIconPicker();
+  } else if (_dialogMode === 'bill') {
+    document.getElementById('dialogTitle').textContent = '记一笔';
+    document.getElementById('dialogBill').style.display = 'block';
+    document.getElementById('billAmountInput').value = '';
+    document.getElementById('billNoteInput').value = '';
+    setBillType('expense');
+    renderCatPicker();
+    renderAccountSelect();
+  } else if (_dialogMode === 'redpacket') {
+    document.getElementById('dialogTitle').textContent = '发红包';
+    document.getElementById('dialogRedpacket').style.display = 'block';
+    document.getElementById('rpAmountInput').value = '';
+    document.getElementById('rpCountInput').value = '5';
+    document.getElementById('rpWishInput').value = '恭喜发财，大吉大利';
+  }
+
+  document.getElementById('addDialog').classList.add('show');
+}
+
+function showAddDialog(mode) {
+  const activeTab = document.querySelector('.tab.active');
+  if (activeTab) {
+    const tabName = activeTab.textContent.trim();
+    if (tabName === '账户') { showAddDialog('account'); return; }
+    if (tabName === '账单') { showAddDialog('bill'); return; }
+  }
+  showAddDialog(mode || 'bill');
+}
+
+function closeAddDialog() {
+  document.getElementById('addDialog').classList.remove('show');
+}
+
+function setBillType(type) {
+  _billType = type;
+  document.getElementById('typeExpense').classList.toggle('selected', type === 'expense');
+  document.getElementById('typeIncome').classList.toggle('selected', type === 'income');
+  renderCatPicker();
+}
+
+function renderCatPicker() {
+  const cats = _billType === 'expense' ? EXPENSE_CATS : INCOME_CATS;
+  document.getElementById('catPicker').innerHTML = cats.map(c =>
+    `<button class="cat-btn ${_selectedCat === c.name ? 'selected' : ''}" onclick="pickCat('${c.name}')">${c.icon} ${c.name}</button>`
+  ).join('');
+}
+
+function renderAccIconPicker() {
+  document.getElementById('accIconPicker').innerHTML = ACC_ICONS.map(icon =>
+    `<button class="cat-btn" onclick="pickAccIcon('${icon}')" style="font-size:18px">${icon}</button>`
+  ).join('');
+}
+
+function pickCat(name) { _selectedCat = name; renderCatPicker(); }
+let _selectedAccIcon = '💰';
+function pickAccIcon(icon) { _selectedAccIcon = icon; renderAccIconPicker(); }
+
+function renderAccountSelect() {
+  const sel = document.getElementById('billAccountSelect');
+  if (_accounts.length === 0) {
+    sel.innerHTML = '<option value="">请先添加账户</option>';
   } else {
-    $("indexRow").innerHTML = "上证指数数据暂不可用";
-  }
-
-  const fundsEl = $("marketFunds");
-  if (marketData.funds && marketData.funds.length) {
-    fundsEl.innerHTML = marketData.funds.map(f => {
-      const cls = (f.day_change_pct ?? 0) >= 0 ? "profit-pos" : "profit-neg";
-      const sign = (f.day_change_pct ?? 0) >= 0 ? "+" : "";
-      return `<div class="fund-row">
-        <span>${escHtml(f.fund_name)} (${f.fund_code})</span>
-        <span class="${cls}">${f.latest_nav?.toFixed(4) ?? '-'} ${f.day_change_pct !== null ? sign + f.day_change_pct + '%' : ''}</span>
-      </div>`;
-    }).join('');
-  } else {
-    fundsEl.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:6px 0">暂无持仓数据</div>';
+    sel.innerHTML = _accounts.map((a,i) => `<option value="${i}">${escHtml(a.name)}</option>`).join('');
   }
 }
 
-/* ── AI 分析 ── */
-async function doAnalyze() {
-  const btn = $("btnAnalyze");
-  btn.disabled = true;
-  btn.innerHTML = "⏳ 分析中...";
-  showToast("已开始分析，可返回其他页面，完成后会语音通知");
-  // 不阻塞 UI，后台执行
-  api("POST", "/api/fund/analyze").then(result => {
-    if (result.ok) {
-      showToast("✅ 分析完成，请查看聊天页");
-    } else {
-      showToast("⚠️ " + (result.reason || "分析失败"));
+function confirmAddDialog() {
+  if (_dialogMode === 'account') {
+    const name = document.getElementById('accNameInput').value.trim();
+    const balance = parseFloat(document.getElementById('accBalanceInput').value) || 0;
+    if (!name) { alert('请输入账户名称'); return; }
+    _accounts.push({ name, balance, icon: _selectedAccIcon, note: '' });
+    _save();
+    renderAccounts();
+  } else if (_dialogMode === 'bill') {
+    const amount = parseFloat(document.getElementById('billAmountInput').value);
+    if (!amount || amount <= 0) { alert('请输入有效金额'); return; }
+    const accIdx = parseInt(document.getElementById('billAccountSelect').value);
+    const acc = _accounts[accIdx] || {name:'默认'};
+    const now = new Date();
+    const dateStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+    const bill = {
+      _id: Date.now(),
+      type: _billType,
+      amount,
+      category: _selectedCat,
+      accountName: acc.name,
+      note: document.getElementById('billNoteInput').value.trim(),
+      date: dateStr,
+    };
+    _bills.push(bill);
+    // 更新账户余额
+    if (_accounts[accIdx]) {
+      _accounts[accIdx].balance = parseFloat((_accounts[accIdx].balance || 0)) + (_billType === 'income' ? amount : -amount);
     }
-  }).catch(e => {
-    showToast("❌ 分析失败");
-  }).finally(() => {
-    btn.disabled = false;
-    btn.innerHTML = "📊 立即分析";
-  });
+    _save();
+    renderBills();
+    renderOverview();
+  } else if (_dialogMode === 'redpacket') {
+    const amount = parseFloat(document.getElementById('rpAmountInput').value);
+    const count = parseInt(document.getElementById('rpCountInput').value) || 1;
+    const wish = document.getElementById('rpWishInput').value.trim() || '恭喜发财';
+    if (!amount || amount <= 0) { alert('请输入有效金额'); return; }
+    _redpackets.push({ amount, count, wish, opened: 0, used: false, createdAt: Date.now() });
+    _save();
+    renderRedpackets();
+  }
+  closeAddDialog();
+  showToast('✅ 已保存');
 }
 
-/* ── Loading ── */
-function showLoading(text) {
-  $("loadingText").textContent = text || "处理中...";
-  $("loadingMask").classList.add("show");
+function openRedpacket(idx) {
+  const rp = _redpackets[idx];
+  if (rp.used) { showToast('这个红包已经用过了'); return; }
+  const each = (rp.amount / rp.count).toFixed(2);
+  showToast(`🧧 恭喜！开出一个红包 ¥${each}`);
+  rp.opened = (rp.opened || 0) + 1;
+  if (rp.opened >= rp.count) rp.used = true;
+  // 加到第一个账户
+  if (_accounts.length > 0) {
+    _accounts[0].balance = parseFloat(_accounts[0].balance || 0) + parseFloat(each);
+  }
+  _save();
+  renderRedpackets();
+  renderOverview();
 }
-function hideLoading() {
-  $("loadingMask").classList.remove("show");
+
+function editAccount(idx) {
+  const a = _accounts[idx];
+  const newBalance = prompt('修改 ' + a.name + ' 余额：', a.balance);
+  if (newBalance !== null) {
+    a.balance = parseFloat(newBalance) || 0;
+    _save();
+    renderAccounts();
+    renderOverview();
+  }
 }
+
+function deleteBill(id) {
+  if (!confirm('删除这条记录？')) return;
+  _bills = _bills.filter(b => b._id != id);
+  _save();
+  renderBills();
+  renderOverview();
+}
+
+// 初始化
+_load();
+renderOverview();
 </script>
 </body>
 </html>
