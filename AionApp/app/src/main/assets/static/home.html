@@ -655,5 +655,17 @@ checkMomentsUnread();
 setInterval(checkMomentsUnread, 60000);
 </script>
 <script>try { if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js'); } catch(e) {}</script>
+<script>
+// 如果在子页面iframe里（返回按钮fallback导航到home.html），自动关闭overlay
+if (window !== window.top) {
+  try {
+    if (!parent._iframeClosing) {
+      window.top.closeSubPage();
+    } else {
+      parent._iframeClosing = false;
+    }
+  } catch(e) {}
+}
+</script>
 </body>
 </html>
