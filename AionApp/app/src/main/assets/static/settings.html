@@ -12,7 +12,7 @@
 <body>
 <div class="sub-page">
   <div class="top-bar">
-    <button class="back-btn" onclick="try{window.parent.closeSubPage()}catch(e){location.href='/'}">⬅</button>
+    <button class="back-btn" onclick="AionNavigator.goBack()">⬅</button>
     <h2>⚙ 设置</h2>
   </div>
   <div class="page-content">
@@ -44,13 +44,6 @@
     </div>
 
     <div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.08)">
-      <label class="form-label" style="font-size:15px;color:#ff8359">◈ Hume AI（情绪检测）</label>
-      <p style="font-size:12px;color:#aaa;margin:2px 0 10px 0">用于语音消息情绪分析，platform.hume.ai 注册获取</p>
-      <label class="form-label">Hume API Key</label>
-      <input class="form-input" type="password" id="humeApiKeyInput" placeholder="platform.hume.ai 注册获取" autocomplete="off" class="form-input" style="font-family:monospace">
-    </div>
-
-    <div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.08)">
       <label class="form-label" style="font-size:15px;color:#ff8359">📱 手机屏幕监督</label>
       <p style="font-size:12px;color:#aaa;margin:2px 0 10px 0">Android App 可开启。MediaProjection 在线时优先用共享屏幕；无障碍开启后，可在共享掉线时继续截普通界面。</p>
       <p id="phoneScreenStatus" style="font-size:12px;color:#aaa;margin:2px 0 10px 0"></p>
@@ -68,8 +61,16 @@
     <input class="form-input" type="text" id="aiproKeyInput" placeholder="输入中转站 API Key..." autocomplete="off" style="font-family:monospace">
     <label class="form-label">网易云 MUSIC_U Cookie（VIP 点歌）</label>
     <input class="form-input" type="text" id="neteaseMusicUInput" placeholder="浏览器 F12 → Cookie → MUSIC_U" autocomplete="off" style="font-family:monospace">
-    <div id="diagPanel" style="display:none;margin:12px;padding:10px;background:#1a1a2e;border-radius:8px;font-size:12px;color:#0f0;font-family:monospace;line-height:1.8"></div>
-    <div class="btn-row" style="justify-content:flex-end"><button class="btn-save" type="button" onclick="runDiag()" style="background:#333">🔍 诊断</button></div>
+    <div class="backup-section" style="margin: 16px 0; padding: 12px; background: rgba(255,131,89,0.08); border-radius: 12px; border: 1px solid rgba(255,131,89,0.2);">
+      <div style="font-size: 14px; font-weight: 500; color: #ff8359; margin-bottom: 10px;">💾 数据备份与恢复</div>
+      <p style="font-size: 12px; color: #aaa; margin: 0 0 10px 0;">导出所有聊天记录、人设、设置为 JSON 文件，换机后可导入恢复。</p>
+      <div class="btn-row" style="margin-bottom: 0">
+        <button class="btn-save" onclick="exportBackup()" style="flex:1; background: #4CAF50;">📤 导出备份</button>
+        <button class="btn-save" onclick="document.getElementById('importFileInput').click()" style="flex:1; background: #2196F3;">📥 导入恢复</button>
+      </div>
+      <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importBackup(this.files[0])">
+    </div>
+
     <div class="btn-row">
       <button class="btn-cancel" onclick="AionNavigator.goBack()">取消</button>
       <button class="btn-save" onclick="saveSettings()">保存</button>
@@ -79,41 +80,6 @@
 <script src="common.js"></script>
 <script>
 connectCommonWS();
-
-// 诊断：检查关键函数是否存在
-(function diagnose() {
-  var results = [];
-  results.push('api: ' + (typeof api === 'function' ? '✓' : '✗ ' + typeof api));
-  results.push('showToast: ' + (typeof showToast === 'function' ? '✓' : '✗ ' + typeof showToast));
-  results.push('localStorage: ' + (typeof localStorage !== 'undefined' ? '✓' : '✗ ' + typeof localStorage));
-  results.push('window.parent: ' + (window.parent ? '✓' : '✗'));
-  results.push('parent.closeSubPage: ' + (window.parent && typeof window.parent.closeSubPage === 'function' ? '✓' : '✗ ' + typeof (window.parent && window.parent.closeSubPage)));
-  results.push('location.href: ' + location.href);
-  alert('诊断结果:\n' + results.join('\n'));
-})();
-
-// 诊断面板
-function runDiag() {
-  var el = document.getElementById('diagPanel');
-  var lines = [];
-  lines.push('api: ' + (typeof api === 'function' ? '✓' : '✗ typeof=' + typeof api));
-  lines.push('showToast: ' + (typeof showToast === 'function' ? '✓' : '✗ typeof=' + typeof showToast));
-  lines.push('localStorage: ' + (typeof localStorage !== 'undefined' ? '✓' : '✗'));
-  lines.push('window.parent: ' + (window.parent ? '✓' : '✗'));
-  lines.push('parent.closeSubPage: ' + (window.parent && typeof window.parent.closeSubPage === 'function' ? '✓' : '✗ typeof=' + typeof (window.parent && window.parent.closeSubPage)));
-  lines.push('window.top: ' + (window.top ? '✓' : '✗'));
-  lines.push('top.closeSubPage: ' + (window.top && typeof window.top.closeSubPage === 'function' ? '✓' : '✗ typeof=' + typeof (window.top && window.top.closeSubPage)));
-  lines.push('location.href: ' + location.href);
-  lines.push('window === window.top: ' + (window === window.top));
-  el.innerHTML = lines.join('<br>');
-  el.style.display = 'block';
-}
-
-(function diagnose() {
-  // alert 在 WebView 里被静默拦截，改用页面内显示
-  // 自动运行一次
-  setTimeout(runDiag, 800);
-})();
 
 (async function init() {
   const s = await api("GET", "/api/settings");
@@ -128,7 +94,6 @@ function runDiag() {
   $("sfKeyInput").value = s.siliconflow_key || "";
   $("aiproKeyInput").value = s.aipro_key || "";
   $("neteaseMusicUInput").value = s.netease_music_u || "";
-  $("humeApiKeyInput").value = s.hume_api_key || "";
   refreshPhoneScreenStatus();
 })();
 
@@ -144,8 +109,7 @@ async function saveSettings() {
     embedding_model: $("embeddingModelInput").value.trim(),
     siliconflow_key: $("sfKeyInput").value.trim(),
     aipro_key: $("aiproKeyInput").value.trim(),
-    netease_music_u: $("neteaseMusicUInput").value.trim(),
-    hume_api_key: $("humeApiKeyInput").value.trim()
+    netease_music_u: $("neteaseMusicUInput").value.trim()
   });
   showToast("✅ 已保存");
 }
@@ -215,7 +179,46 @@ function refreshPhoneScreenStatus() {
   try { accessibility = !!bridge.isAccessibilityEnabled?.(); } catch (e) {}
   el.textContent = `共享屏幕：${mediaProjection ? "已开启" : "未开启"} · 无障碍：${accessibility ? "已开启" : "未开启"}`;
 }
+
+// ── 备份/恢复 ──
+function exportBackup() {
+  const data = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith('aion_')) {
+      try { data[key] = JSON.parse(localStorage.getItem(key)); } catch { data[key] = localStorage.getItem(key); }
+    }
+  }
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'aion-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  alert('备份已下载！共 ' + Object.keys(data).length + ' 项数据');
+}
+
+function importBackup(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      let count = 0;
+      for (const [key, value] of Object.entries(data)) {
+        if (key.startsWith('aion_')) {
+          localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
+          count++;
+        }
+      }
+      alert('恢复成功！共 ' + count + ' 项数据已导入，请刷新页面。');
+    } catch (err) {
+      alert('导入失败：' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
 </script>
 </body>
 </html>
-
