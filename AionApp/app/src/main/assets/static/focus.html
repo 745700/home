@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>⏱ 专注模式</title>
+<link rel="stylesheet" href="common.css">
+<style>
+body { background: #1a1a2e; color: white; overflow: hidden; }
+.sub-page { background: #1a1a2e; }
+.top-bar { background: transparent; border: none; box-shadow: none; }
+.back-btn { color: white; }
+.top-bar h2 { color: white; }
+
+.center-screen {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; min-height: 80vh; padding: 20px;
+  text-align: center;
+}
+.focus-icon { font-size: 80px; margin-bottom: 16px; }
+.focus-title { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+.focus-desc { font-size: 14px; color: rgba(255,255,255,0.5); margin-bottom: 32px; }
+
+/* Timer display */
+.timer-display {
+  font-size: 72px;
+  font-weight: 200;
+  font-family: 'SF Mono', 'Menlo', monospace;
+  letter-spacing: 4px;
+  margin: 24px 0;
+}
+.timer-label { font-size: 14px; color: rgba(255,255,255,0.5); margin-bottom: 4px; }
+
+/* Duration picker */
+.duration-picker {
+  display: flex; gap: 12px; justify-content: center;
+  margin: 24px 0; flex-wrap: wrap;
+}
+.duration-btn {
+  padding: 10px 20px; border-radius: 24px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.05);
+  color: white; font-size: 14px; cursor: pointer;
+  transition: all 0.2s;
+}
+.duration-btn:hover { background: rgba(255,255,255,0.1); }
+.duration-btn.selected { background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.5); }
+
+/* Buttons */
+.focus-btn {
+  width: 200px; padding: 14px 32px; border-radius: 32px;
+  border: none; font-size: 16px; font-weight: 600;
+  cursor: pointer; margin: 8px; transition: all 0.2s;
+}
+.focus-btn.start {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+}
+.focus-btn.start:active { transform: scale(0.97); }
+.focus-btn.stop {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.3);
+  color: rgba(255,255,255,0.7);
+}
+.focus-btn.done {
+  background: linear-gradient(135deg, #4CAF50, #2E7D32);
+  color: white;
+  box-shadow: 0 4px 20px rgba(76, 175, 80, 0.4);
+}
+
+/* Active mode overlay */
+.lock-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: #1a1a2e;
+  z-index: 200;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.lock-overlay.active { display: flex; }
+
+.lock-timer {
+  font-size: 96px;
+  font-weight: 200;
+  font-family: 'SF Mono', 'Menlo', monospace;
+  letter-spacing: 6px;
+  margin: 24px 0;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+.lock-motto {
+  font-size: 15px;
+  color: rgba(255,255,255,0.5);
+  margin: 8px 0 32px;
+}
+.lock-progress {
+  width: 200px; height: 4px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px;
+  margin-bottom: 32px;
+  overflow: hidden;
+}
+.lock-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  border-radius: 2px;
+  transition: width 1s linear;
+}
+.lock-remaining {
+  font-size: 13px;
+  color: rgba(255,255,255,0.4);
+  margin-top: 8px;
+}
+.unlock-btn {
+  padding: 12px 32px;
+  border-radius: 32px;
+  background: rgba(255,82,82,0.2);
+  border: 1px solid rgba(255,82,82,0.4);
+  color: #ff5252;
+  font-size: 14px;
+  cursor: pointer;
+  margin-top: 16px;
+}
+.unlock-btn:hover { background: rgba(255,82,82,0.3); }
+
+/* Motivational quotes */
+.quote {
+  font-size: 14px;
+  color: rgba(255,255,255,0.4);
+  max-width: 280px;
+  line-height: 1.8;
+  margin-top: 24px;
+  font-style: italic;
+}
+
+.motto-list { display: none; }
+.motto-list.active { display: block; }
+</style>
+</head>
+<body>
+<div class="sub-page">
+  <div class="top-bar">
+    <button class="back-btn" onclick="AionNavigator.goBack()">⬅</button>
+    <h2>⏱ 专注模式</h2>
+  </div>
+
+  <div class="center-screen" id="idleScreen">
+    <div class="focus-icon">⏱</div>
+    <div class="focus-title">专注模式</div>
+    <div class="focus-desc">锁定 App，安心专注<br>最长 1 小时，时间到自动解锁</div>
+
+    <div class="timer-label">选择专注时长</div>
+    <div class="duration-picker" id="durationPicker">
+      <button class="duration-btn selected" onclick="pickDuration(15)">15分钟</button>
+      <button class="duration-btn" onclick="pickDuration(25)">25分钟</button>
+      <button class="duration-btn" onclick="pickDuration(45)">45分钟</button>
+      <button class="duration-btn" onclick="pickDuration(60)">1小时</button>
+    </div>
+
+    <button class="focus-btn start" onclick="startFocus()">开始专注</button>
+
+    <div class="quote" id="quoteText">"专注是通往卓越的唯一路径。"</div>
+  </div>
+</div>
+
+<!-- 专注中锁屏 -->
+<div class="lock-overlay" id="lockOverlay">
+  <div style="font-size:14px;color:rgba(255,255,255,0.4);margin-bottom:8px">专注中...</div>
+  <div class="lock-timer" id="lockTimer">25:00</div>
+  <div class="lock-motto" id="lockMotto">🎯 专注于当下</div>
+  <div class="lock-progress">
+    <div class="lock-progress-bar" id="lockProgressBar" style="width:0%"></div>
+  </div>
+  <div class="lock-remaining" id="lockRemaining">剩余 25:00</div>
+  <button class="unlock-btn" onclick="confirmUnlock()">提前结束</button>
+</div>
+
+<script src="common.js"></script>
+<script>
+const QUOTES = [
+  '"专注是通往卓越的唯一路径。"',
+  '".done { .done; }"', // 程序员梗
+  '"心无旁骛，方能成事。"',
+  '"Stay hungry, stay foolish."',
+  '"把复杂的事情做简单，是大师。"',
+  '"一次只做一件事，做到最好。"',
+];
+
+let _duration = 25;
+let _timer = null;
+let _remaining = 0;
+let _total = 0;
+let _paused = false;
+
+function pickDuration(mins) {
+  _duration = mins;
+  document.querySelectorAll('.duration-btn').forEach(b => b.classList.remove('selected'));
+  event.target.classList.add('selected');
+  document.getElementById('quoteText').textContent = QUOTES[Math.floor(Math.random() * QUOTES.length)];
+}
+
+function startFocus() {
+  if (_timer) return;
+  _remaining = _duration * 60;
+  _total = _remaining;
+  document.getElementById('lockOverlay').classList.add('active');
+  document.getElementById('lockMotto').textContent = getMotto();
+  tick();
+}
+
+function getMotto() {
+  const mottos = ['🎯 专注于当下', '📚 静下心来', '⚡ 高效工作', '🧘 冥想时刻', '💪 坚持就是胜利'];
+  return mottos[Math.floor(Math.random() * mottos.length)];
+}
+
+function tick() {
+  if (_remaining <= 0) {
+    clearInterval(_timer);
+    _timer = null;
+    focusComplete();
+    return;
+  }
+  _remaining--;
+  const mins = Math.floor(_remaining / 60);
+  const secs = _remaining % 60;
+  const timeStr = String(mins).padStart(2,'0') + ':' + String(secs).padStart(2,'0');
+  document.getElementById('lockTimer').textContent = timeStr;
+  document.getElementById('lockRemaining').textContent = '剩余 ' + timeStr;
+  const pct = ((_total - _remaining) / _total * 100).toFixed(1);
+  document.getElementById('lockProgressBar').style.width = pct + '%';
+}
+
+function focusComplete() {
+  document.getElementById('lockOverlay').classList.remove('active');
+  showToast('🎉 专注完成！太棒了！');
+  // 震动提示
+  try { navigator.vibrate?.([200,100,200]); } catch {}
+}
+
+function confirmUnlock() {
+  if (!confirm('确定要提前结束专注吗？')) return;
+  clearInterval(_timer);
+  _timer = null;
+  document.getElementById('lockOverlay').classList.remove('active');
+  showToast('专注被中断了，没关系～');
+}
+
+// 页面可见性变化检测（防止偷偷退出）
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && _remaining > 0) {
+    document.getElementById('lockOverlay').classList.add('active');
+  }
+});
+</script>
+</body>
+</html>
