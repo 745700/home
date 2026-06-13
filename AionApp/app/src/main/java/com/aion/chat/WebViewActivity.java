@@ -330,6 +330,9 @@ public class WebViewActivity extends AppCompatActivity {
                     routeMap.put("/weather", "weather.html");
                     routeMap.put("/activity-logs", "activity-logs.html");
                     routeMap.put("/monitor-logs", "monitor-logs.html");
+                    routeMap.put("/fund", "fund.html");
+                    routeMap.put("/sentinel", "sentinel.html");
+                    routeMap.put("/focus", "focus.html");
                     routeMap.put("/camera", "camera.html");
                     routeMap.put("/", "home.html");
                     if (routeMap.containsKey(path)) {
@@ -419,6 +422,9 @@ public class WebViewActivity extends AppCompatActivity {
                     routeMap.put("/weather", "weather.html");
                     routeMap.put("/activity-logs", "activity-logs.html");
                     routeMap.put("/monitor-logs", "monitor-logs.html");
+                    routeMap.put("/fund", "fund.html");
+                    routeMap.put("/sentinel", "sentinel.html");
+                    routeMap.put("/focus", "focus.html");
                     routeMap.put("/camera", "camera.html");
                     routeMap.put("/", "home.html");
                     if (routeMap.containsKey(path)) {
