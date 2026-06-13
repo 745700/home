@@ -4086,6 +4086,8 @@ function closeSubPage(skipReload = false) {
   if (!ov.classList.contains('show')) return;
   ov.classList.remove('show');
   ov.classList.remove('home-subpage');
+  // 告诉子页面：我们正在关闭，下次 home.html 加载时不要重复关闭
+  parent._iframeClosing = true;
   $('subPageFrame').src = 'about:blank';
   currentSubPage = null;
   applyAionTheme(localStorage.getItem('aion_chat_theme') || document.body.dataset.theme || 'dark');
