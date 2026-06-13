@@ -261,6 +261,30 @@ public class WebViewActivity extends AppCompatActivity {
             }
         }, "AionImageSaver");
 
+        // 手机闹钟桥接：网页可设置闹钟，App 端弹出通知
+        webView.addJavascriptInterface(new Object() {
+            @JavascriptInterface
+            public void set(String label, int minutes) {
+                mainHandler.post(() -> {
+                    try {
+                        long triggerTime = System.currentTimeMillis() + (minutes * 60 * 1000L);
+                        Intent intent = new Intent(WebViewActivity.this, AionPushService.class);
+                        intent.putExtra("action", "alarm");
+                        intent.putExtra("label", label);
+                        intent.putExtra("triggerAt", triggerTime);
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            startForegroundService(intent);
+                        } else {
+                            startService(intent);
+                        }
+                        Toast.makeText(WebViewActivity.this, "⏰ 闹钟已设置 " + minutes + " 分钟后: " + label, Toast.LENGTH_SHORT).show();
+                    } catch (Exception e) {
+                        Toast.makeText(WebViewActivity.this, "闹钟设置失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+        }, "AionAlarm");
+
         // 权限请求延迟到页面加载完成后，避免系统弹窗阻塞 WebView 加载
         // 见 onPageFinished → requestPermissionsSequentially()
 
