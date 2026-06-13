@@ -1779,3 +1779,26 @@ body[data-theme="light"] .plus-menu-item { text-shadow: none; }
 .msg-bubble:has(.transfer-card)::after {
   display: none !important;
 }
+
+
+/* ── 购物搜索卡片 ── */
+.shop-cards { padding: 4px 0 8px; }
+.shop-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; background: white;
+  border-radius: 12px; margin-bottom: 6px;
+  text-decoration: none; color: inherit;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  transition: all 0.15s;
+}
+.shop-card:active { transform: scale(0.98); background: #f8f8f8; }
+.shop-icon { font-size: 24px; width: 32px; text-align: center; flex-shrink: 0; }
+.shop-info { flex: 1; min-width: 0; }
+.shop-name { font-size: 14px; font-weight: 500; color: #333; }
+.shop-kw { font-size: 11px; color: #aaa; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shop-arrow { font-size: 18px; color: #E91E63; flex-shrink: 0; }
+
+/* 深色模式适配 */
+body[data-theme="dark"] .shop-card { background: #2a2a2a; }
+body[data-theme="dark"] .shop-name { color: #eee; }
+body[data-theme="dark"] .shop-card:active { background: #333; }
