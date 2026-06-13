@@ -284,6 +284,8 @@ public class WebViewActivity extends AppCompatActivity {
                         prefs.edit().putBoolean("auto_connect", false).apply();
                         startActivity(new Intent(WebViewActivity.this, LauncherActivity.class));
                         finish();
+                    } else if ("goback".equals(host)) {
+                        webView.goBack();
                     }
                     return true;
                 }
@@ -744,7 +746,12 @@ public class WebViewActivity extends AppCompatActivity {
     @SuppressWarnings("deprecation")
     @Override
     public void onBackPressed() {
-        // 统一由 JS 判断当前页面状态，决定导航到 Home 还是弹对话框
+        // 方案1：先尝试 WebView 历史记录返回（子页面 → 主页）
+        if (webView.canGoBack()) {
+            webView.goBack();
+            return;
+        }
+        // 方案2：让 JS 判断当前页面状态
         webView.evaluateJavascript(
             "(function(){ if(typeof handleNativeBack==='function') return handleNativeBack(); return 'dialog'; })()",
             value -> runOnUiThread(() -> {
