@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>天气</title>
+<link rel="stylesheet" href="common.css">
+<style>
+.sub-page { background: linear-gradient(180deg, #1a237e 0%, #283593 40%, #3949ab 100%); min-height:100vh; }
+.top-bar { background: transparent; border: none; box-shadow: none; }
+.top-bar h2 { color: white; }
+.back-btn { color: white; }
+
+.weather-card {
+  text-align: center;
+  padding: 32px 20px 20px;
+  color: white;
+}
+.weather-icon { font-size: 96px; line-height: 1; margin-bottom: 8px; }
+.weather-temp { font-size: 72px; font-weight: 200; line-height: 1; }
+.weather-desc { font-size: 18px; opacity: 0.85; margin-top: 4px; }
+.weather-loc { font-size: 14px; opacity: 0.6; margin-top: 8px; }
+.weather-update { font-size: 12px; opacity: 0.4; margin-top: 4px; }
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 0 16px 20px;
+}
+.detail-card {
+  background: rgba(255,255,255,0.15);
+  border-radius: 16px;
+  padding: 16px;
+  color: white;
+  text-align: center;
+}
+.detail-card .d-icon { font-size: 28px; margin-bottom: 6px; }
+.detail-card .d-val { font-size: 22px; font-weight: 600; }
+.detail-card .d-label { font-size: 12px; opacity: 0.7; margin-top: 2px; }
+
+.forecast-scroll {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 0 16px 20px;
+  -webkit-overflow-scrolling: touch;
+}
+.forecast-card {
+  background: rgba(255,255,255,0.12);
+  border-radius: 14px;
+  padding: 14px 16px;
+  color: white;
+  text-align: center;
+  min-width: 80px;
+  flex-shrink: 0;
+}
+.forecast-card .f-day { font-size: 12px; opacity: 0.7; }
+.forecast-card .f-icon { font-size: 32px; margin: 6px 0; }
+.forecast-card .f-hi { font-size: 16px; font-weight: 600; }
+.forecast-card .f-lo { font-size: 13px; opacity: 0.6; margin-top: 2px; }
+
+.loading { text-align: center; padding: 40px; color: rgba(255,255,255,0.6); font-size: 15px; }
+.error-msg { text-align: center; padding: 20px; color: rgba(255,200,200,0.8); font-size: 14px; }
+.refresh-btn {
+  background: rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.3);
+  color: white;
+  border-radius: 20px;
+  padding: 8px 20px;
+  font-size: 14px;
+  margin: 0 16px 16px;
+  cursor: pointer;
+  width: calc(100% - 32px);
+}
+</style>
+</head>
+<body>
+<div class="sub-page">
+  <div class="top-bar">
+    <button class="back-btn" onclick="AionNavigator.goBack()">⬅</button>
+    <h2>🌤 天气</h2>
+  </div>
+
+  <div id="loadingEl" class="loading">正在获取天气...</div>
+  <div id="errorEl" class="error-msg" style="display:none"></div>
+  <div id="weatherContent" style="display:none">
+    <div class="weather-card">
+      <div class="weather-icon" id="weatherIcon">🌤</div>
+      <div class="weather-temp" id="weatherTemp">--°</div>
+      <div class="weather-desc" id="weatherDesc">--</div>
+      <div class="weather-loc" id="weatherLoc">--</div>
+      <div class="weather-update" id="weatherUpdate"></div>
+    </div>
+    <div class="detail-grid" id="detailGrid"></div>
+    <div class="forecast-scroll" id="forecastScroll"></div>
+  </div>
+  <button class="refresh-btn" onclick="loadWeather()">🔄 刷新</button>
+</div>
+
+<script src="common.js"></script>
+<script>
+// Weather code to emoji mapping
+const WMO_CODES = {
+  0: ['☀️', '晴'],
+  1: ['🌤️', '大部晴朗'],
+  2: ['⛅', '多云'],
+  3: ['☁️', '阴'],
+  45: ['🌫', '雾'],
+  48: ['🌫', '霜雾'],
+  51: ['🌦', '小毛毛雨'],
+  53: ['🌧', '中毛毛雨'],
+  55: ['🌧', '大毛毛雨'],
+  61: ['🌧', '小雨'],
+  63: ['🌧', '中雨'],
+  65: ['🌧', '大雨'],
+  71: ['🌨', '小雪'],
+  73: ['🌨', '中雪'],
+  75: ['❄️', '大雪'],
+  80: ['🌦', '阵雨'],
+  81: ['🌧', '中阵雨'],
+  82: ['⛈', '大阵雨'],
+  85: ['🌨', '阵雪'],
+  86: ['❄️', '大雪'],
+  95: ['⛈', '雷暴'],
+  96: ['⛈', '雷暴+冰雹'],
+  99: ['⛈', '雷暴+大冰雹'],
+};
+
+function getWeatherInfo(code) {
+  return WMO_CODES[code] || ['🌤️', '未知'];
+}
+
+// 使用 open-meteo API（免费无需 Key）
+async function loadWeather() {
+  const loadingEl = document.getElementById('loadingEl');
+  const errorEl = document.getElementById('errorEl');
+  const contentEl = document.getElementById('weatherContent');
+  loadingEl.style.display = 'block';
+  errorEl.style.display = 'none';
+  contentEl.style.display = 'none';
+
+  try {
+    // 获取定位
+    const position = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+    });
+    const lat = position.coords.latitude.toFixed(4);
+    const lon = position.coords.longitude.toFixed(4);
+
+    // 获取天气
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,precipitation&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=5`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('API 请求失败');
+    const data = await res.json();
+
+    const current = data.current;
+    const daily = data.daily;
+    const [icon, desc] = getWeatherInfo(current.weather_code);
+
+    document.getElementById('weatherIcon').textContent = icon;
+    document.getElementById('weatherTemp').textContent = Math.round(current.temperature_2m) + '°';
+    document.getElementById('weatherDesc').textContent = desc + ' · 体感 ' + Math.round(current.apparent_temperature) + '°';
+    document.getElementById('weatherLoc').textContent = lat + '°N ' + lon + '°E';
+    document.getElementById('weatherUpdate').textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+
+    // 详情
+    const detailMap = [
+      { icon: '💧', val: current.relative_humidity_2m + '%', label: '湿度' },
+      { icon: '🌬', val: Math.round(current.wind_speed_10m) + ' km/h', label: '风速' },
+      { icon: '🌡️', val: Math.round(current.apparent_temperature) + '°', label: '体感温度' },
+      { icon: '🌧', val: (current.precipitation || 0) + ' mm', label: '降水' },
+    ];
+    document.getElementById('detailGrid').innerHTML = detailMap.map(d =>
+      `<div class="detail-card"><div class="d-icon">${d.icon}</div><div class="d-val">${d.val}</div><div class="d-label">${d.label}</div></div>`
+    ).join('');
+
+    // 预报
+    const days = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+    document.getElementById('forecastScroll').innerHTML = daily.time.map((t, i) => {
+      const date = new Date(t + 'T00:00:00');
+      const dayLabel = i === 0 ? '今天' : i === 1 ? '明天' : days[date.getDay()];
+      const [ic, dc] = getWeatherInfo(daily.weather_code[i]);
+      return `<div class="forecast-card">
+        <div class="f-day">${dayLabel}</div>
+        <div class="f-icon">${ic}</div>
+        <div class="f-hi">${Math.round(daily.temperature_2m_max[i])}°</div>
+        <div class="f-lo">${Math.round(daily.temperature_2m_min[i])}°</div>
+      </div>`;
+    }).join('');
+
+    loadingEl.style.display = 'none';
+    contentEl.style.display = 'block';
+  } catch (err) {
+    loadingEl.style.display = 'none';
+    errorEl.style.display = 'block';
+    errorEl.textContent = '获取天气失败：' + err.message + '\n\n请允许定位权限后重试';
+  }
+}
+
+// 页面加载时自动获取
+document.addEventListener('DOMContentLoaded', loadWeather);
+</script>
+</body>
+</html>
