@@ -4,6 +4,19 @@ let currentMessages = [];
 let models = [];
 let sending = false;
 let streamingAiId = null;
+
+// ── 消息本地持久化 ──
+function _saveMessages() {
+  if (!currentConvId) return;
+  _ls.set('msgs_' + currentConvId, currentMessages);
+  // 更新对话时间
+  const convs = _ls.get('convs') || [];
+  const idx = convs.findIndex(c => c.id === currentConvId);
+  if (idx >= 0) {
+    convs[idx].updated_at = Date.now() / 1000;
+    _ls.set('convs', convs);
+  }
+}
 let _abortController = null;  // 用于中止 AI 生成
 let camCheckMsgId = null;
 let poiSearchMsgId = null;
@@ -2034,6 +2047,7 @@ async function send() {
     streamingAiId = null;
     _abortController = null;
     _showSendBtn();
+    _saveMessages();
   }
 }
 
@@ -2128,7 +2142,12 @@ async function _processSSEStream(res) {
 
 
 // ── 消息操作 ──
-async function delMsg(id) { await api("DELETE", `/api/messages/${id}`); }
+async function delMsg(id) {
+  // 离线：本地删除消息
+  currentMessages = currentMessages.filter(m => m.id !== id);
+  renderMessages();
+  _saveMessages();
+}
 
 function editMsg(id) {
   closeMsgMenus();
@@ -2157,153 +2176,90 @@ function editMsg(id) {
 
 function cancelEdit(id) { renderMessages(); }
 
-// [saveEdit stubbed] async function saveEdit(id) {
+// 离线编辑重发：用 SiliconFlow API
 async function saveEdit(id) {
-  // Stub: edit-resend not supported in offline mode yet
   const ta = document.getElementById('edit_' + id);
   if (!ta) return;
   const newText = ta.value.trim();
   if (!newText) return;
-  const msg = currentMessages.find(m => m.id === id);
-  if (!msg) return;
+
+  const msgIdx = currentMessages.findIndex(m => m.id === id);
+  if (msgIdx < 0) return;
+  const msg = currentMessages[msgIdx];
   msg.content = newText;
 
-  // 前端立即删除该消息之后的所有消息
-  const idx = currentMessages.indexOf(msg);
-  if (idx >= 0) currentMessages.splice(idx + 1);
-  // 添加临时的 AI 思考中占位
-  const tempAiId = 'temp_edit_thinking';
-  currentMessages.push({ id: tempAiId, conv_id: currentConvId, role: 'assistant', content: '...', created_at: Date.now()/1000 });
+  // 删除该消息之后的所有消息
+  currentMessages = currentMessages.slice(0, msgIdx + 1);
   renderMessages();
-  _startTypingAnim(tempAiId);
+
+  sending = true;
+  _showStopBtn();
   _abortController = new AbortController();
+
   try {
     const contextLimit = parseInt($('contextSlider').value) || 30;
-    const temperature = parseFloat($('tempSlider').value);
-    const maxTokens = _getMaxTokens();
-    const res = await fetch(`/api/messages/${id}/edit-resend`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ content: newText, context_limit: contextLimit, whisper_mode: whisperMode, temperature, max_tokens: maxTokens, tts_enabled: ttsEnabled, tts_voice: ttsVoiceId, client_id: _clientId }),
-      signal: _abortController.signal
-    });
+    const tempVal = parseFloat($('tempSlider').value);
+    const model = $('modelSelect')?.value || 'deepseek-ai/DeepSeek-V3-0324';
+    const settings = JSON.parse(localStorage.getItem('aion_settings') || '{}');
+    const apiKey = settings.siliconflow_key;
 
-    if (!res.ok) {
-      console.error('编辑重发接口错误:', res.status, res.statusText);
+    const systemPrompt = settings.system_prompt || DEFAULT_SYSTEM_PROMPT;
+    const worldbookEntries = JSON.parse(localStorage.getItem('aion_worldbook') || '[]');
+    const worldbookSystem = worldbookEntries.map(e => `[记忆片段] ${e.content}`).join('\n');
+    const fullSystem = worldbookSystem ? systemPrompt + "\n\n" + worldbookSystem : systemPrompt;
+    const recentMsgs = currentMessages.slice(-contextLimit * 2);
+    const messages = [
+      { role: 'system', content: fullSystem },
+      ...recentMsgs.map(m => ({
+        role: m.role === 'temp_user' ? 'user' : m.role,
+        content: m.content || '',
+        ...(m.attachments?.length ? { attachments: m.attachments } : {})
+      }))
+    ];
+
+    const newAiId = 'ai_edit_' + Date.now();
+    streamingAiId = newAiId;
+    currentMessages.push({ id: newAiId, conv_id: currentConvId, role: 'assistant', content: '...', created_at: Date.now()/1000 });
+    renderMessages();
+    _startTypingAnim(newAiId);
+
+    if (!apiKey) {
       _stopTypingAnim();
-      // 回滚：从服务器重新加载消息
-      const msgs = await api('GET', `/api/conversations/${currentConvId}/messages?limit=${MSG_PAGE_SIZE}`);
-      currentMessages = msgs;
+      const mi = currentMessages.findIndex(m => m.id === newAiId);
+      if (mi >= 0) currentMessages[mi].content = '⚠️ 请先在设置页填写硅基流动 API Key';
       renderMessages();
-      sending = false;
-      _showSendBtn();
       return;
     }
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let aiMsgId = null;
-    let aiContent = '';
-    let buf = '';
+    const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: messages,
+        stream: true,
+        temperature: tempVal || 0.7,
+        max_tokens: 4096
+      }),
+      signal: _abortController.signal
+    });
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      const lines = buf.split('\n');
-      buf = lines.pop();
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        try {
-          const data = JSON.parse(line.slice(6));
-          if (data.type === 'start') {
-            _stopTypingAnim();
-            // 替换临时思考占位为真正的 AI 消息
-            const tempIdx = currentMessages.findIndex(m => m.id === tempAiId);
-            if (tempIdx >= 0) currentMessages.splice(tempIdx, 1);
-            aiMsgId = data.id;
-            streamingAiId = aiMsgId;
-            currentMessages.push({ id: aiMsgId, conv_id: currentConvId, role: 'assistant', content: '...', created_at: Date.now()/1000 });
-            renderMessages();
-            _startTypingAnim(aiMsgId);
-          } else if (data.type === 'cli_status') {
-            _updateTypingStatus(aiMsgId, data.text);
-          } else if (data.type === 'chunk' || data.type === 'replace') {
-            _stopTypingAnim();
-            aiContent = data.type === 'replace' ? data.content : aiContent + data.content;
-            const display = aiContent.replace(/\[CAM_CHECK\]/g, '').replace(/\[POI_SEARCH:[^\]]*\]/g, '').replace(/\[MUSIC:[^\]]*\]/g, '').replace(/\[ALARM:[^\]]*\]/g, '').replace(/\[REMINDER:[^\]]*\]/g, '').replace(/\[Monitor:[^\]]*\]/g, '').replace(/\[SCHEDULE_DEL:[^\]]*\]/g, '').replace(/\[SCHEDULE_LIST\]/g, '').replace(/\[TOY:[^\]]*\]/g, '').replace(/\[HEART:[^\]]*\]/g, '').replace(/\[MEMORY:[^\]]*\]/g, '').replace(/\[查看动态:\d+\]/g, '').replace(/\[视频电话\]/g, '').replace(/\[SELFIE:\s*[^\]]*\]/g, '').replace(/\[DRAW:\s*[^\]]*\]/g, '').replace(/<meta>[\s\S]*?<\/meta>/g, '').trim();
-            const mi = currentMessages.findIndex(m => m.id === aiMsgId);
-            if (mi >= 0) currentMessages[mi].content = display;
-            const container = document.getElementById(`m_${aiMsgId}`);
-            if (container) {
-              const parts = display.split(/\n{2,}/).filter(p => p.trim());
-              const target = container.querySelector('.msg-bubbles') || container.querySelector('.msg-bubble');
-              if (parts.length > 1) {
-                const wrapper = document.createElement('div');
-                wrapper.className = 'msg-bubbles';
-                wrapper.innerHTML = parts.map(p => `<div class="msg-bubble">${formatMsg(p)}</div>`).join('');
-                target.replaceWith(wrapper);
-              } else if (target) {
-                if (target.classList.contains('msg-bubbles')) {
-                  const single = document.createElement('div');
-                  single.className = 'msg-bubble';
-                  single.innerHTML = formatMsg(display);
-                  target.replaceWith(single);
-                } else {
-                  target.innerHTML = formatMsg(display);
-                }
-              }
-            }
-            scrollBottom();
-          } else if (data.type === 'debug' && aiMsgId) {
-            msgDebugData[aiMsgId] = data;
-            renderDebugBar(aiMsgId);
-          } else if (data.type === 'cam_check') {
-            handleCamCheck(data.conv_id, data.model_key, aiMsgId);
-          } else if (data.type === 'cam_offline') {
-            showCamOfflineNotice();
-          } else if (data.type === 'activity_check') {
-            handleActivityCheck(data.conv_id, data.n, aiMsgId);
-          } else if (data.type === 'poi_search') {
-            handlePoiSearch(data.categories, aiMsgId);
-          } else if (data.type === 'music') {
-            msgMusicCards[data.msg_id] = data.cards;
-            renderMusicCards(data.msg_id);
-            scrollBottom();
-            if (data.cards && data.cards.length) playMusicOnline(data.cards[0].id);
-          } else if (data.type === 'toy_command') {
-            if (toyConnected) data.commands.forEach(c => toyExecCmd(c));
-            showToyCapsule(data.msg_id, data.commands);
-          } else if (data.type === 'moment_new') {
-            // 朋友圈动态不在聊天界面展示
-          } else if (data.type === 'memory_record') {
-            showMemoryRecordHint(data.msg_id, data.content);
-          } else if (data.type === 'video_call_incoming') {
-            if (typeof videoCall !== 'undefined') videoCall.handleIncomingIndicator(data);
-          } else if (data.type === 'image_gen_start') {
-            handleImageGenStart(data);
-          }
-        } catch {}
-      }
+    if (!response.ok) {
+      throw new Error('API错误 ' + response.status);
     }
-    if (aiMsgId) finishTTSForMsg(aiMsgId);
-    if ((voiceInCall || (typeof videoCall !== 'undefined' && videoCall.active)) && !ttsEnabled) {
-      notifyVoiceAiSpeaking(false);
-    }
+
+    await _processSSEStream(response);
+
   } catch (err) {
-    if (err.name === 'AbortError') {
-      console.log("用户中止编辑重发");
-    } else {
+    if (err.name !== 'AbortError') {
       console.error('编辑重发失败:', err);
       _stopTypingAnim();
-      addErrorToSystemLog(`编辑重发失败: ${err.message || err}`, $('modelSelect')?.value);
-      // 清理临时占位和未完成的 AI 消息
-      currentMessages = currentMessages.filter(m => m.id !== tempAiId);
-      if (streamingAiId) {
-        const mi = currentMessages.findIndex(m => m.id === streamingAiId);
-        if (mi >= 0 && currentMessages[mi].content === '...') {
-          currentMessages.splice(mi, 1);
-        }
+      const mi = currentMessages.findIndex(m => m.id === streamingAiId);
+      if (mi >= 0 && currentMessages[mi].content === '...') {
+        currentMessages.splice(mi, 1);
       }
       renderMessages();
     }
@@ -2312,6 +2268,7 @@ async function saveEdit(id) {
     streamingAiId = null;
     _abortController = null;
     _showSendBtn();
+    _saveMessages();
   }
 }
 
@@ -2320,103 +2277,94 @@ function copyMsg(id) {
   if (msg) navigator.clipboard.writeText(msg.content);
 }
 
-// [regenerateMsg stubbed]
+// 离线重新生成：用 SiliconFlow 重新生成 AI 回复
 async function regenerateMsg(aiMsgId) {
-  alert('重新生成在离线模式下暂不可用');
-  await api("DELETE", `/api/messages/${aiMsgId}`);
-  currentMessages = currentMessages.filter(m => m.id !== aiMsgId);
+  closeMsgMenus();
+  // 找到该 AI 消息的上一条用户消息
+  const aiIdx = currentMessages.findIndex(m => m.id === aiMsgId);
+  if (aiIdx <= 0) return;
+  const prevMsg = currentMessages[aiIdx - 1];
+  // 删除该 AI 消息及其后所有消息
+  currentMessages = currentMessages.slice(0, aiIdx);
   renderMessages();
 
   sending = true;
   _showStopBtn();
-
   _abortController = new AbortController();
+
   try {
-    const cl = parseInt($("contextSlider").value) || 30;
-    const temperature = parseFloat($("tempSlider").value);
-    const maxTokens = _getMaxTokens();
-    const mtParam = maxTokens ? `&max_tokens=${maxTokens}` : '';
-    const res = await fetch(`/api/conversations/${currentConvId}/regenerate?context_limit=${cl}&whisper_mode=${whisperMode}&temperature=${temperature}${mtParam}&tts_enabled=${ttsEnabled}&tts_voice=${encodeURIComponent(ttsVoiceId)}`, {
-      method: "POST", headers: {"Content-Type": "application/json"},
+    const contextLimit = parseInt($("contextSlider").value) || 30;
+    const tempVal = parseFloat($("tempSlider").value);
+    const model = $("modelSelect")?.value || 'deepseek-ai/DeepSeek-V3-0324';
+    const settings = JSON.parse(localStorage.getItem('aion_settings') || '{}');
+    const apiKey = settings.siliconflow_key;
+
+    const systemPrompt = settings.system_prompt || DEFAULT_SYSTEM_PROMPT;
+    const worldbookEntries = JSON.parse(localStorage.getItem('aion_worldbook') || '[]');
+    const worldbookSystem = worldbookEntries.map(e => `[记忆片段] ${e.content}`).join('\n');
+    const fullSystem = worldbookSystem ? systemPrompt + "\n\n" + worldbookSystem : systemPrompt;
+    const recentMsgs = currentMessages.slice(-contextLimit * 2);
+    const messages = [
+      { role: 'system', content: fullSystem },
+      ...recentMsgs.map(m => ({
+        role: m.role === 'temp_user' ? 'user' : m.role,
+        content: m.content || '',
+        ...(m.attachments?.length ? { attachments: m.attachments } : {})
+      }))
+    ];
+
+    const newAiId = 'ai_regen_' + Date.now();
+    streamingAiId = newAiId;
+    currentMessages.push({ id: newAiId, conv_id: currentConvId, role: 'assistant', content: '...', created_at: Date.now()/1000 });
+    renderMessages();
+    _startTypingAnim(newAiId);
+
+    if (!apiKey) {
+      _stopTypingAnim();
+      const mi = currentMessages.findIndex(m => m.id === newAiId);
+      if (mi >= 0) currentMessages[mi].content = '⚠️ 请先在设置页填写硅基流动 API Key';
+      renderMessages();
+      return;
+    }
+
+    const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: messages,
+        stream: true,
+        temperature: tempVal || 0.7,
+        max_tokens: 4096
+      }),
       signal: _abortController.signal
     });
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let newId = null, aiContent = "", buf = "";
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      const lines = buf.split("\n");
-      buf = lines.pop();
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        try {
-          const d = JSON.parse(line.slice(6));
-          if (d.type === "start") {
-            newId = d.id;
-            streamingAiId = newId;
-            currentMessages.push({ id: newId, conv_id: currentConvId, role: "assistant", content: "...", created_at: Date.now()/1000 });
-            renderMessages();
-            _startTypingAnim(newId);
-          } else if (d.type === "chunk" || d.type === "replace") {
-            _stopTypingAnim();
-            aiContent = d.type === "replace" ? d.content : aiContent + d.content;
-            const display = aiContent.replace(/\[CAM_CHECK\]/g, '').replace(/\[POI_SEARCH:[^\]]*\]/g, '').replace(/\[MUSIC:[^\]]*\]/g, '').replace(/\[ALARM:[^\]]*\]/g, '').replace(/\[REMINDER:[^\]]*\]/g, '').replace(/\[Monitor:[^\]]*\]/g, '').replace(/\[SCHEDULE_DEL:[^\]]*\]/g, '').replace(/\[SCHEDULE_LIST\]/g, '').replace(/\[TOY:[^\]]*\]/g, '').replace(/\[HEART:[^\]]*\]/g, '').replace(/\[MEMORY:[^\]]*\]/g, '').replace(/\[查看动态:\d+\]/g, '').replace(/\[视频电话\]/g, '').replace(/\[SELFIE:\s*[^\]]*\]/g, '').replace(/\[DRAW:\s*[^\]]*\]/g, '').replace(/<meta>[\s\S]*?<\/meta>/g, '').trim();
-            const mi = currentMessages.findIndex(m => m.id === newId);
-            if (mi >= 0) currentMessages[mi].content = display;
-            const b = document.querySelector(`#m_${newId} .msg-bubble`);
-            if (b) b.textContent = display;
-            scrollBottom();
-          } else if (d.type === "debug" && newId) {
-            msgDebugData[newId] = d;
-            renderDebugBar(newId);
-          } else if (d.type === "cam_check") {
-            handleCamCheck(d.conv_id, d.model_key, newId);
-          } else if (d.type === "cam_offline") {
-            showCamOfflineNotice();
-          } else if (d.type === "activity_check") {
-            handleActivityCheck(d.conv_id, d.n, newId);
-          } else if (d.type === "poi_search") {
-            handlePoiSearch(d.categories, newId);
-          } else if (d.type === "music") {
-            msgMusicCards[d.msg_id] = d.cards;
-            renderMusicCards(d.msg_id);
-            scrollBottom();
-            if (d.cards && d.cards.length) playMusicOnline(d.cards[0].id);
-          } else if (d.type === "toy_command") {
-            if (toyConnected) d.commands.forEach(c => toyExecCmd(c));
-            showToyCapsule(d.msg_id, d.commands);
-          } else if (d.type === "moment_new") {
-            // 朋友圈动态不在聊天界面展示
-          } else if (d.type === "memory_record") {
-            showMemoryRecordHint(d.msg_id, d.content);
-          } else if (d.type === "video_call_incoming") {
-            if (typeof videoCall !== 'undefined') videoCall.handleIncomingIndicator(d);
-          } else if (d.type === "image_gen_start") {
-            handleImageGenStart(d);
-          }
-        } catch {}
-      }
+    if (!response.ok) {
+      throw new Error('API错误 ' + response.status);
     }
-    // TTS 由服务端流式推送，标记该消息 TTS 分段完成
-    if (newId) finishTTSForMsg(newId);
-    if ((voiceInCall || (typeof videoCall !== 'undefined' && videoCall.active)) && !ttsEnabled) {
-      notifyVoiceAiSpeaking(false);
-    }
+
+    await _processSSEStream(response);
+
   } catch (err) {
-    if (err.name === 'AbortError') {
-      console.log("用户中止重新生成");
-    } else {
+    if (err.name !== 'AbortError') {
       console.error("重新生成失败:", err);
       _stopTypingAnim();
-      addErrorToSystemLog(`重新生成失败: ${err.message || err}`, $("modelSelect")?.value);
+      const mi = currentMessages.findIndex(m => m.id === streamingAiId);
+      if (mi >= 0 && currentMessages[mi].content === '...') {
+        currentMessages.splice(mi, 1);
+      }
+      renderMessages();
     }
   } finally {
     sending = false;
+    streamingAiId = null;
     _abortController = null;
     _showSendBtn();
+    _saveMessages();
   }
 }
 
