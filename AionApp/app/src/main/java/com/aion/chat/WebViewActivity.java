@@ -326,7 +326,8 @@ public class WebViewActivity extends AppCompatActivity {
                     routeMap.put("/fund", "fund.html");
                     routeMap.put("/playground", "playground.html");
                     routeMap.put("/doudizhu", "doudizhu.html");
-                    routeMap.put("/seeky", "seeky.html");
+                    routeMap.put("/seeky", "seaky.html");
+                    routeMap.put("/weather", "weather.html");
                     routeMap.put("/activity-logs", "activity-logs.html");
                     routeMap.put("/monitor-logs", "monitor-logs.html");
                     routeMap.put("/camera", "camera.html");
@@ -414,7 +415,8 @@ public class WebViewActivity extends AppCompatActivity {
                     routeMap.put("/fund", "fund.html");
                     routeMap.put("/playground", "playground.html");
                     routeMap.put("/doudizhu", "doudizhu.html");
-                    routeMap.put("/seeky", "seeky.html");
+                    routeMap.put("/seeky", "seaky.html");
+                    routeMap.put("/weather", "weather.html");
                     routeMap.put("/activity-logs", "activity-logs.html");
                     routeMap.put("/monitor-logs", "monitor-logs.html");
                     routeMap.put("/camera", "camera.html");
