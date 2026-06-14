@@ -154,7 +154,7 @@ textarea::placeholder{color:#555}
 <script>
 // ─── 常量 ───────────────────────────────────────────────
 const STORAGE_KEY = 'aion_wish_pool';
-const MAX_PER_DAY = 3;
+const MAX_PER_DAY = 1;
 
 // ─── 状态 ───────────────────────────────────────────────
 let wishes = [];
@@ -338,6 +338,14 @@ function getReviewingWish() {
 function getRejectReason(id) {
   const w = wishes.find(x => x.id === id);
   return w && w.status === 'rejected' && w.rejectedReason ? w.rejectedReason : '';
+}
+
+// 刷新悬浮条（AI 驳回/实现后调用）
+function refreshBanner() {
+  updateRemainCount();
+  updateStats();
+  loadMyHistory();
+  loadAll();
 }
 
 // ─── 弹窗 ───────────────────────────────────────────────
