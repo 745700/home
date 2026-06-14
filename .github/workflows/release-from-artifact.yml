@@ -4,22 +4,22 @@ on:
   workflow_dispatch:
     inputs:
       run_id:
-        description: 'Run ID with artifact (e.g. 27504585799 for run #376)'
+        description: 'Run ID with artifact'
         required: true
         type: string
       tag_name:
-        description: 'Release tag (e.g. v376-offline)'
+        description: 'Release tag'
         required: true
         type: string
         default: 'v376-offline'
       release_name:
         description: 'Release name'
         required: false
-        default: 'Offline APK'
+        default: 'Offline APK v376'
       body:
         description: 'Release body'
         required: false
-        default: '离线版 APK'
+        default: '离线版 APK v376'
 
 permissions:
   contents: write
@@ -33,13 +33,13 @@ jobs:
         with:
           run-id: ${{ inputs.run_id }}
           repository: 745700/AionsHome
-          pattern: "*.apk"
+          pattern: '*.apk'
           merge-multiple: false
 
       - name: Show downloaded files
         run: |
-          echo "=== artifacts ==="
-          find . -name "*.apk" -type f
+          echo '=== artifacts ==='
+          find . -name '*.apk' -type f
           ls -lh
 
       - name: Upload to GitHub Release
