@@ -4693,6 +4693,7 @@ function wishFulfill() {
     showToast('愿望已标记为已实现~');
     _currentReviewingWish = null;
     _refreshWishBanner();
+    if (window.AionWishPool.refreshBanner) window.AionWishPool.refreshBanner();
   }
 }
 
@@ -4712,6 +4713,7 @@ function wishDoReject(reason) {
     showToast('纸条已驳回');
     _currentReviewingWish = null;
     _refreshWishBanner();
+    if (window.AionWishPool.refreshBanner) window.AionWishPool.refreshBanner();
   }
 }
 
