@@ -292,6 +292,95 @@ public class WebViewActivity extends AppCompatActivity {
         // 活动日志桥接（本地 SQLite + UsageStatsManager，离线可用）
         webView.addJavascriptInterface(new AionActivityLog(webView), "AionActivity");
 
+        // 系统设置跳转 + 运行时权限请求桥
+        webView.addJavascriptInterface(new Object() {
+            @JavascriptInterface
+            public void openUsageAccessSettings() {
+                mainHandler.post(() -> {
+                    try {
+                        Intent intent = new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS);
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                    } catch (Exception e) {
+                        Toast.makeText(WebViewActivity.this, "请手动去设置→应用→权限→使用情况访问", Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
+
+            @JavascriptInterface
+            public void openOverlaySettings() {
+                mainHandler.post(() -> {
+                    try {
+                        Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
+                        intent.setData(Uri.parse("package:" + getPackageName()));
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                    } catch (Exception e) {
+                        Toast.makeText(WebViewActivity.this, "请手动去设置→应用→权限→悬浮窗", Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
+
+            @JavascriptInterface
+            public void openAppSettings() {
+                mainHandler.post(() -> {
+                    try {
+                        Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                        intent.setData(Uri.parse("package:" + getPackageName()));
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                    } catch (Exception e) {
+                        Toast.makeText(WebViewActivity.this, "请手动去设置→应用→AI Companion", Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
+
+            @JavascriptInterface
+            public void openBatteryOptimizationSettings() {
+                mainHandler.post(() -> {
+                    try {
+                        Intent intent = new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                    } catch (Exception e) {
+                        openAppSettings();
+                    }
+                });
+            }
+
+            @JavascriptInterface
+            public boolean checkPermission(String perm) {
+                if (perm == null || perm.isEmpty()) return false;
+                try {
+                    int result = checkCallingOrSelfPermission(perm);
+                    return result == PackageManager.PERMISSION_GRANTED;
+                } catch (Exception e) { return false; }
+            }
+
+            @JavascriptInterface
+            public void requestPermission(String perm) {
+                mainHandler.post(() -> {
+                    if (checkPermission(perm)) {
+                        // 已在 permission granted 回调里通知前端，这里只处理跳转
+                    }
+                });
+            }
+        }, "AionSettings");
+
+        // 运行时权限请求结果回调桥（Android 6.0+ 权限回调）
+        webView.addJavascriptInterface(new Object() {
+            @JavascriptInterface
+            public void onPermissionResult(String perm, boolean granted) {
+                // 前端可以通过订阅这个回调获知权限结果
+                mainHandler.post(() -> {
+                    webView.evaluateJavascript(
+                        "if(window._onPermissionResult)window._onPermissionResult('"+perm+"',"+granted+");",
+                        null);
+                });
+            }
+        }, "AionPermCallback");
+
+
 
         // 通用文件保存桥（用于设置备份 JSON 等文本文件 → Downloads 目录）
         webView.addJavascriptInterface(new Object() {
