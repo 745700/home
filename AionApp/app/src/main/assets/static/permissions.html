@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>权限设置 - AI Companion</title>
+<link rel="stylesheet" href="common.css">
+<style>
+body { background: #f5f5f5; }
+.sub-page { background: #f5f5f5; }
+.top-bar { background: rgba(255,255,255,0.95); border-bottom: 1px solid #eee; }
+.back-btn { color: #333; }
+.top-bar h2 { color: #333; }
+
+.header-banner {
+  margin: 14px 12px 6px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border-radius: 14px;
+  padding: 20px 16px;
+  color: white;
+  text-align: center;
+}
+.header-banner .hb-icon { font-size: 36px; }
+.header-banner .hb-title { font-size: 18px; font-weight: 700; margin: 6px 0 4px; }
+.header-banner .hb-desc { font-size: 13px; opacity: 0.85; line-height: 1.5; }
+
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text2);
+  padding: 12px 14px 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.perm-card {
+  background: white;
+  margin: 0 12px 8px;
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.perm-card .pc-icon { font-size: 28px; flex-shrink: 0; margin-top: 2px; }
+.perm-card .pc-body { flex: 1; min-width: 0; }
+.perm-card .pc-name { font-size: 15px; font-weight: 600; color: #333; margin-bottom: 3px; }
+.perm-card .pc-desc { font-size: 12px; color: var(--text2); line-height: 1.5; }
+.perm-card .pc-status {
+  font-size: 12px; font-weight: 600; padding: 3px 10px;
+  border-radius: 12px; flex-shrink: 0; margin-top: 4px;
+}
+.perm-card .pc-status.ok { background: #e8f5e9; color: #2e7d32; }
+.perm-card .pc-status.no { background: #ffebee; color: #c62828; }
+.perm-card .pc-status.warn { background: #fff3e0; color: #e65100; }
+
+.perm-btn {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 7px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+.perm-btn.primary { background: var(--accent); color: white; }
+.perm-btn.outline { background: white; color: var(--accent); border: 1.5px solid var(--accent); }
+.perm-btn:disabled { opacity: 0.5; pointer-events: none; }
+
+.step-list {
+  background: white;
+  margin: 0 12px 8px;
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+.step-item {
+  display: flex;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.step-item:last-child { border-bottom: none; }
+.step-num {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--accent); color: white;
+  font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-top: 1px;
+}
+.step-text { color: var(--text); flex: 1; }
+.step-text code {
+  background: #f0f0f0; padding: 1px 5px; border-radius: 4px;
+  font-size: 12px; color: #d32f2f;
+}
+
+.footer-tip {
+  margin: 6px 12px 20px;
+  padding: 10px 14px;
+  background: #e3f2fd;
+  border-radius: 10px;
+  font-size: 12px;
+  color: #1565c0;
+  line-height: 1.6;
+}
+
+.progress-bar {
+  margin: 0 12px 12px;
+  background: #e0e0e0;
+  border-radius: 8px;
+  height: 8px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4CAF50, #81C784);
+  border-radius: 8px;
+  transition: width 0.5s ease;
+}
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text2);
+  margin: 4px 12px 0;
+}
+</style>
+</head>
+<body>
+<div class="sub-page">
+  <div class="top-bar">
+    <button class="back-btn" onclick="AionNavigator.goBack()">⬅</button>
+    <h2>🔐 权限设置</h2>
+  </div>
+
+  <!-- 总体进度 -->
+  <div class="header-banner">
+    <div class="hb-icon">🔑</div>
+    <div class="hb-title">权限设置向导</div>
+    <div class="hb-desc">开启必要权限，让 AI Companion 功能完整运行</div>
+  </div>
+
+  <div class="progress-bar">
+    <div class="progress-fill" id="progressFill" style="width:0%"></div>
+  </div>
+  <div class="progress-label">
+    <span id="progressText">已开启 0 / 5 项核心权限</span>
+    <span id="progressHint"></span>
+  </div>
+
+  <!-- ═══════════════ 核心权限 ═══════════════ -->
+  <div class="section-title">⬛ 核心权限（影响功能）</div>
+
+  <!-- 1. 使用情况访问 -->
+  <div class="perm-card">
+    <div class="pc-icon">📊</div>
+    <div class="pc-body">
+      <div class="pc-name">使用情况访问</div>
+      <div class="pc-desc">活动日志核心依赖。记录你打开了哪些 App、使用了多久。<strong style="color:#c62828">必须手动开启</strong>，系统不提供弹窗。</div>
+      <button class="perm-btn outline" id="btnUsage" onclick="openUsageAccess()">去设置开启 ›</button>
+    </div>
+    <div class="pc-status no" id="statusUsage">未开启</div>
+  </div>
+
+  <!-- 2. 无障碍服务 -->
+  <div class="perm-card">
+    <div class="pc-icon">♿</div>
+    <div class="pc-body">
+      <div class="pc-name">无障碍服务（截屏监控）</div>
+      <div class="pc-desc">让 AI 看到当前手机屏幕。开启后可选"监控模式"由 AI 接管操作。<strong style="color:#c62828">必须手动开启</strong>。</div>
+      <button class="perm-btn outline" id="btnA11y" onclick="openAccessibilitySettings()">去设置开启 ›</button>
+    </div>
+    <div class="pc-status no" id="statusA11y">未开启</div>
+  </div>
+
+  <!-- 3. 相机 -->
+  <div class="perm-card">
+    <div class="pc-icon">📷</div>
+    <div class="pc-body">
+      <div class="pc-name">相机权限</div>
+      <div class="pc-desc">实时监控（手机前置摄像头）+ 发送图片给 AI + 朋友圈发图</div>
+      <button class="perm-btn primary" id="btnCamera" onclick="requestCamera()">申请授权</button>
+    </div>
+    <div class="pc-status no" id="statusCamera">未开启</div>
+  </div>
+
+  <!-- 4. 定位 -->
+  <div class="perm-card">
+    <div class="pc-icon">📍</div>
+    <div class="pc-body">
+      <div class="pc-name">定位权限</div>
+      <div class="pc-desc">哨兵模式围栏守护（离开家自动通知）+ SOS 发送位置</div>
+      <button class="perm-btn primary" id="btnLocation" onclick="requestLocation()">申请授权</button>
+    </div>
+    <div class="pc-status no" id="statusLocation">未开启</div>
+  </div>
+
+  <!-- 5. 短信 -->
+  <div class="perm-card">
+    <div class="pc-icon">💬</div>
+    <div class="pc-body">
+      <div class="pc-name">短信权限</div>
+      <div class="pc-desc">自动记账：收到银行/支付短信时自动记录收支（仅读取，不发送）</div>
+      <button class="perm-btn primary" id="btnSMS" onclick="requestSMS()">申请授权</button>
+    </div>
+    <div class="pc-status no" id="statusSMS">未开启</div>
+  </div>
+
+  <!-- ═══════════════ 可选权限 ═══════════════ -->
+  <div class="section-title">◇ 可选权限（增强体验）</div>
+
+  <!-- 6. 通知 -->
+  <div class="perm-card">
+    <div class="pc-icon">🔔</div>
+    <div class="pc-body">
+      <div class="pc-name">通知权限</div>
+      <div class="pc-desc">AI 主动提醒你（如：活动摘要、哨兵告警、定时提醒）</div>
+      <button class="perm-btn primary" id="btnNotif" onclick="requestNotif()">申请授权</button>
+    </div>
+    <div class="pc-status no" id="statusNotif">未开启</div>
+  </div>
+
+  <!-- 7. 悬浮窗 -->
+  <div class="perm-card">
+    <div class="pc-icon">🪟</div>
+    <div class="pc-body">
+      <div class="pc-name">悬浮窗（显示在其他应用上层）</div>
+      <div class="pc-desc">🔒砖头机锁屏功能 + 锁屏时显示 AI 消息。<strong style="color:#e65100">部分安卓系统需手动开启</strong>。</div>
+      <button class="perm-btn outline" id="btnOverlay" onclick="openOverlaySettings()">去设置开启 ›</button>
+    </div>
+    <div class="pc-status no" id="statusOverlay">未开启</div>
+  </div>
+
+  <!-- 8. 后台定位 -->
+  <div class="perm-card">
+    <div class="pc-icon">🗺</div>
+    <div class="pc-body">
+      <div class="pc-name">后台定位</div>
+      <div class="pc-desc">熄屏后继续记录位置，用于哨兵围栏在后台持续监测（荣耀需单独开启）</div>
+      <button class="perm-btn outline" id="btnBgLoc" onclick="openBgLocationSettings()">去设置开启 ›</button>
+    </div>
+    <div class="pc-status no" id="statusBgLoc">未开启</div>
+  </div>
+
+  <!-- ═══════════════ 手动开启指引 ═══════════════ -->
+  <div class="section-title">📖 手动权限开启指引</div>
+
+  <div class="step-list">
+    <div class="step-item">
+      <div class="step-num">1</div>
+      <div class="step-text">
+        打开手机<strong>设置</strong> → <strong>应用</strong> → <strong>应用管理</strong> → 找到 <code>AI Companion</code>
+      </div>
+    </div>
+    <div class="step-item">
+      <div class="step-num">2</div>
+      <div class="step-text">
+        点击<strong>权限</strong>，找到「<strong>查看使用情况访问</strong>」→ 选择「允许」<br>
+        <span style="color:#888;font-size:12px">路径：设置 → 应用 → AI Companion → 权限 → 查看使用情况访问 → 允许</span>
+      </div>
+    </div>
+    <div class="step-item">
+      <div class="step-num">3</div>
+      <div class="step-text">
+        返回上一级，点击<strong>无障碍</strong> → 找到「<strong>AI Companion</strong>」→ 开启<br>
+        <span style="color:#888;font-size:12px">路径：设置 → 应用 → AI Companion → 无障碍 → AI Companion → 开启</span>
+      </div>
+    </div>
+    <div class="step-item">
+      <div class="step-num">4</div>
+      <div class="step-text">
+        对于荣耀/华为：还需打开<strong>电池</strong> → <strong>启动管理</strong> → 找到 AI Companion → 允许<strong>后台运行</strong>和<strong>自动启动</strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-tip">
+    💡 <strong>提示：</strong>使用情况访问和无障碍服务需要手动开启，App 无法自动请求。开启后活动日志和截屏监控即可正常工作。
+  </div>
+
+  <div style="height:24px"></div>
+</div>
+
+<script src="common.js"></script>
+<script>
+// ── 核心权限检查 ──
+const CORE_PERMS = ['UsageAccess', 'A11y', 'Camera', 'Location', 'SMS'];
+const ALL_PERMS = [...CORE_PERMS, 'Notif', 'Overlay', 'BgLoc'];
+
+async function checkAllPermissions() {
+  let granted = 0;
+
+  // 使用情况访问
+  try {
+    const has = window.AionActivity?.hasPermission?.();
+    setStatus('Usage', !!has, '使用情况访问');
+    if (has) granted++;
+  } catch(e) { setStatus('Usage', false, '使用情况访问'); }
+
+  // 无障碍服务
+  try {
+    const bridge = window.AionAccessibility;
+    const enabled = bridge?.isAccessibilityEnabled?.();
+    setStatus('A11y', !!enabled, '无障碍服务');
+    if (enabled) granted++;
+  } catch(e) { setStatus('A11y', false, '无障碍服务'); }
+
+  // 运行时权限（Camera / Location / SMS / Notification）
+  const camGranted = await checkRtPerm('android.permission.CAMERA');
+  setStatus('Camera', camGranted, '相机权限');
+  if (camGranted) granted++;
+
+  const locGranted = await checkRtPerm('android.permission.ACCESS_FINE_LOCATION');
+  setStatus('Location', locGranted, '定位权限');
+  if (locGranted) granted++;
+
+  const smsGranted = await checkRtPerm('android.permission.READ_SMS');
+  setStatus('SMS', smsGranted, '短信权限');
+  if (smsGranted) granted++;
+
+  const notifGranted = await checkRtPerm('android.permission.POST_NOTIFICATIONS');
+  setStatus('Notif', notifGranted, '通知权限');
+  if (notifGranted) granted++;
+
+  // 悬浮窗
+  const overlayGranted = await checkRtPerm('android.permission.SYSTEM_ALERT_WINDOW');
+  setStatus('Overlay', overlayGranted, '悬浮窗');
+  if (overlayGranted) granted++;
+
+  // 后台定位
+  if (locGranted) {
+    setStatus('BgLoc', true, '后台定位', '（与定位同权限组）');
+    granted++; // 算一个
+  } else {
+    setStatus('BgLoc', false, '后台定位', '需先开启定位权限');
+  }
+
+  // 更新进度
+  const pct = Math.round((granted / ALL_PERMS.length) * 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressText').textContent = `已开启 ${granted} / ${ALL_PERMS.length} 项权限`;
+  document.getElementById('progressHint').textContent =
+    granted === ALL_PERMS.length ? '🎉 全部开启！' :
+    CORE_PERMS.length - Math.min(granted, CORE_PERMS.length) + ' 项核心权限待开';
+}
+
+function setStatus(key, ok, name, extra) {
+  const el = document.getElementById('status' + key);
+  const btn = document.getElementById('btn' + key);
+  if (!el) return;
+  el.textContent = ok ? '已开启' : '未开启';
+  el.className = 'pc-status ' + (ok ? 'ok' : 'no');
+  if (btn) {
+    if (ok) {
+      btn.style.display = 'none';
+    } else {
+      btn.style.display = 'inline-block';
+    }
+  }
+}
+
+// ── 运行时权限请求 ──
+async function checkRtPerm(perm) {
+  try {
+    if (window.AionSettings?.checkPermission) {
+      return !!(window.AionSettings.checkPermission(perm));
+    }
+    // 降级：浏览器 API
+    if (perm.includes('CAMERA')) return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+    if (perm.includes('LOCATION')) return new Promise(res => {
+      navigator.geolocation.getCurrentPosition(() => res(true), () => res(false), {timeout:1000});
+    });
+    return false;
+  } catch(e) { return false; }
+}
+
+async function requestCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+    stream.getTracks().forEach(t => t.stop());
+    showToast('✅ 相机授权成功');
+    setStatus('Camera', true, '相机权限');
+    updateProgress();
+  } catch(e) {
+    showToast('❌ 相机授权失败：' + (e.message || '请在设置中开启'));
+  }
+}
+
+async function requestLocation() {
+  if (!navigator.geolocation) { showToast('当前设备不支持定位'); return; }
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      showToast('✅ 定位授权成功');
+      setStatus('Location', true, '定位权限');
+      // 后台定位跟着一起算
+      setStatus('BgLoc', true, '后台定位', '（与定位同权限组）');
+      updateProgress();
+    },
+    err => showToast('❌ 定位授权失败：' + err.message),
+    { enableHighAccuracy: false, timeout: 8000 }
+  );
+}
+
+async function requestSMS() {
+  if (window.AionSettings?.requestPermission) {
+    // 订阅结果回调
+    window._onPermissionResult = (perm, granted) => {
+      if (perm === 'android.permission.READ_SMS') {
+        setStatus('SMS', granted, '短信权限');
+        updateProgress();
+        window._onPermissionResult = null;
+      }
+    };
+    window.AionSettings.requestPermission('android.permission.READ_SMS');
+    showToast('请在弹窗中允许短信权限');
+    // 5秒后检查状态
+    setTimeout(() => {
+      const granted = window.AionSettings?.checkPermission?.('android.permission.READ_SMS');
+      if (granted !== undefined) {
+        setStatus('SMS', !!granted, '短信权限');
+        updateProgress();
+        window._onPermissionResult = null;
+      }
+    }, 5000);
+    return;
+  }
+  showToast('请在系统设置中手动开启短信权限');
+}
+
+async function requestNotif() {
+  if (window.AionSettings?.openNotificationSettings) {
+    window.AionSettings.openNotificationSettings();
+    showToast('请在通知设置中允许通知');
+    setTimeout(() => {
+      const granted = window.AionSettings?.checkPermission?.('android.permission.POST_NOTIFICATIONS');
+      if (granted !== undefined) {
+        setStatus('Notif', !!granted, '通知权限');
+        updateProgress();
+      }
+    }, 2000);
+    return;
+  }
+  showToast('请在系统设置中开启通知权限');
+}
+
+// ── 跳转系统设置 ──
+function openUsageAccess() {
+  try {
+    if (window.AionSettings?.openUsageAccessSettings) {
+      window.AionSettings.openUsageAccessSettings();
+      return;
+    }
+  } catch(e) {}
+  showToast('请手动去设置→应用→AI Companion→权限→使用情况访问→允许');
+}
+
+function openAccessibilitySettings() {
+  try {
+    if (window.AionPhoneScreen?.openAccessibilitySettings) {
+      window.AionPhoneScreen.openAccessibilitySettings();
+      return;
+    }
+  } catch(e) {}
+  try {
+    if (window.AionSettings?.openAppSettings) {
+      window.AionSettings.openAppSettings();
+      return;
+    }
+  } catch(e) {}
+  showToast('请手动去设置→应用→AI Companion→无障碍开启');
+}
+
+function openOverlaySettings() {
+  try {
+    if (window.AionSettings?.openOverlaySettings) {
+      window.AionSettings.openOverlaySettings();
+      return;
+    }
+  } catch(e) {}
+  showToast('请手动去设置→应用→AI Companion→权限→悬浮窗');
+}
+
+function openBgLocationSettings() {
+  try {
+    if (window.AionSettings?.openAppSettings) {
+      window.AionSettings.openAppSettings();
+      return;
+    }
+  } catch(e) {}
+  showToast('请手动去设置→应用→AI Companion→权限→定位→后台定位');
+}
+
+function updateProgress() {
+  checkAllPermissions();
+}
+
+// ── 初始化 ──
+setTimeout(checkAllPermissions, 300);
+</script>
+</body>
+</html>
