@@ -232,7 +232,7 @@ public class AionAccessibilityService extends AccessibilityService {
         try {
             // 简单策略：文件超过 MAX_LOG_LINES * 80 字节时截断前面一半
             if (localLogFile.length() > MAX_LOG_LINES * 80L) {
-                java.io.List<String> lines = java.nio.file.Files.readAllLines(localLogFile.toPath(), java.nio.charset.StandardCharsets.UTF_8);
+                java.util.List<String> lines = java.nio.file.Files.readAllLines(localLogFile.toPath(), java.nio.charset.StandardCharsets.UTF_8);
                 if (lines.size() > MAX_LOG_LINES) {
                     List<String> kept = lines.subList(lines.size() - MAX_LOG_LINES, lines.size());
                     File tmp = new File(localLogFile.getParent(), "app_switches.jsonl.tmp");
