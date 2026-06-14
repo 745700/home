@@ -562,6 +562,7 @@ public class WebViewActivity extends AppCompatActivity {
                     routeMap.put("/fund", "fund.html");
                     routeMap.put("/sentinel", "sentinel.html");
                     routeMap.put("/focus", "focus.html");
+                    routeMap.put("/permissions", "permissions.html");
                     routeMap.put("/camera", "camera.html");
                     routeMap.put("/", "home.html");
                     if (routeMap.containsKey(path)) {
