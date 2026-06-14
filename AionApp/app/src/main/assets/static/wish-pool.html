@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>许愿池</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{background:#1a1a2e;color:#e0e0e0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;min-height:100vh;padding-bottom:80px}
+.bar{position:fixed;top:0;left:0;right:0;height:56px;background:rgba(26,26,46,0.98);display:flex;align-items:center;padding:0 16px;z-index:100;border-bottom:1px solid rgba(255,255,255,0.06);backdrop-filter:blur(10px)}
+.back{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#888;font-size:20px;cursor:pointer;border:none;background:rgba(255,255,255,0.05)}
+.back:active{background:rgba(255,255,255,0.1)}
+.title{flex:1;text-align:center;font-size:17px;font-weight:600;color:#c8c8d4;margin-right:36px}
+
+.tabs{display:flex;padding:12px 16px 0;gap:4px;background:#1a1a2e}
+.tab{flex:1;padding:10px 0;text-align:center;border-radius:12px 12px 0 0;font-size:14px;color:#666;background:rgba(255,255,255,0.04);cursor:pointer;border:none}
+.tab.active{background:rgba(88,111,212,0.25);color:#8895f8}
+
+.tab-content{display:none;padding:16px}
+.tab-content.active{display:block}
+
+textarea{width:100%;min-height:130px;background:rgba(255,255,255,0.06);border:1.5px solid rgba(255,255,255,0.1);border-radius:16px;color:#e0e0e0;font-size:15px;padding:14px;resize:none;outline:none;line-height:1.6;transition:border-color .2s}
+textarea:focus{border-color:rgba(136,149,248,0.6)}
+textarea::placeholder{color:#555}
+.btn-row{margin-top:12px;display:flex;gap:10px}
+.btn-submit{flex:1;padding:13px;background:linear-gradient(135deg,#6c8fd4,#8895f8);border:none;border-radius:14px;color:#fff;font-size:16px;font-weight:600;cursor:pointer;letter-spacing:1px}
+.btn-submit:disabled{opacity:.4;cursor:not-allowed}
+.btn-submit:active:not(:disabled){transform:scale(0.97)}
+
+.info-row{display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:12px;color:#555}
+.remain{color:#8895f8;font-weight:600}
+
+.list{background:rgba(255,255,255,0.04);border-radius:16px;overflow:hidden;min-height:80px}
+.item{padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.05);cursor:pointer;transition:background .15s}
+.item:last-child{border-bottom:none}
+.item:active{background:rgba(255,255,255,0.06)}
+.item-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.item-title{font-size:14px;color:#b8b8c8;font-weight:600;flex:1;margin-right:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item-time{font-size:11px;color:#444;flex-shrink:0}
+.item-content{font-size:13px;color:#888;line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.tag{padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;flex-shrink:0}
+.tag-pending{background:rgba(136,149,248,0.2);color:#8895f8}
+.tag-reviewing{background:rgba(230,183,106,0.2);color:#e6b76a}
+.tag-done{background:rgba(100,210,150,0.2);color:#6dd29b}
+.tag-rejected{background:rgba(210,100,100,0.2);color:#d16464}
+.empty{padding:40px 20px;text-align:center;color:#444;font-size:14px}
+
+.stat-bar{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:16px}
+.stat{background:rgba(255,255,255,0.04);border-radius:12px;padding:12px 8px;text-align:center}
+.stat-num{font-size:22px;font-weight:700;color:#8895f8}
+.stat-label{font-size:11px;color:#555;margin-top:3px}
+
+.section-title{font-size:13px;color:#555;padding:12px 16px 6px;font-weight:600;letter-spacing:.5px}
+
+.modal-mask{position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;transition:opacity .2s;pointer-events:none}
+.modal-mask.show{opacity:1;pointer-events:all}
+.modal{background:#242440;border-radius:20px;width:100%;max-width:380px;padding:24px;transform:scale(.95);transition:transform .2s}
+.modal.show{transform:scale(1)}
+.modal-title{font-size:17px;font-weight:700;color:#c8c8d4;margin-bottom:16px;text-align:center}
+.modal-content{font-size:14px;color:#888;line-height:1.6;margin-bottom:16px;max-height:200px;overflow-y:auto}
+.modal-row{display:flex;gap:10px;margin-top:16px}
+.modal-btn{flex:1;padding:12px;border-radius:12px;font-size:15px;font-weight:600;border:none;cursor:pointer;transition:transform .1s}
+.modal-btn:active{transform:scale(.95)}
+.btn-cancel{background:rgba(255,255,255,0.08);color:#888}
+.btn-confirm{background:linear-gradient(135deg,#6c8fd4,#8895f8);color:#fff}
+.modal-input{width:100%;min-height:80px;background:rgba(255,255,255,0.06);border:1.5px solid rgba(255,255,255,0.1);border-radius:12px;color:#e0e0e0;font-size:14px;padding:12px;resize:none;outline:none;transition:border-color .2s}
+.modal-input:focus{border-color:rgba(136,149,248,0.6)}
+.modal-input::placeholder{color:#555}
+
+.nickname-input{width:100%;background:rgba(255,255,255,0.06);border:1.5px solid rgba(255,255,255,0.1);border-radius:12px;color:#e0e0e0;font-size:14px;padding:12px;outline:none;margin-bottom:12px;transition:border-color .2s}
+.nickname-input:focus{border-color:rgba(136,149,248,0.6)}
+.nickname-input::placeholder{color:#555}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <button class="back" onclick="window.closeSubPage ? window.closeSubPage() : history.back()">‹</button>
+  <div class="title">许愿池</div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" id="tab投递">投递</button>
+  <button class="tab" id="tab历史">我的历史</button>
+  <button class="tab" id="tab全部">全部记录</button>
+</div>
+
+<!-- 投递页 -->
+<div class="tab-content active" id="content投递">
+  <textarea id="wishContent" placeholder="写下你的愿望..." maxlength="500"></textarea>
+  <div class="info-row">
+    <span class="remain" id="remainCount"></span>
+    <span id="dailyReset"></span>
+  </div>
+  <div class="btn-row">
+    <button class="btn-submit" id="btnSubmit" onclick="confirmSubmit()">确认投递</button>
+  </div>
+
+  <div class="section-title" style="margin-top:24px">📊 投递统计</div>
+  <div class="stat-bar">
+    <div class="stat"><div class="stat-num" id="statTotal">0</div><div class="stat-label">总计</div></div>
+    <div class="stat"><div class="stat-num" id="statPending">0</div><div class="stat-label">待处理</div></div>
+    <div class="stat"><div class="stat-num" id="statDone">0</div><div class="stat-label">已实现</div></div>
+    <div class="stat"><div class="stat-num" id="statRejected">0</div><div class="stat-label">已驳回</div></div>
+  </div>
+</div>
+
+<!-- 历史记录页 -->
+<div class="tab-content" id="content历史">
+  <div id="myHistoryList"></div>
+</div>
+
+<!-- 全部记录页 -->
+<div class="tab-content" id="content全部">
+  <div id="allList"></div>
+</div>
+
+<!-- 确认投递弹窗 -->
+<div class="modal-mask" id="modalSubmit">
+  <div class="modal">
+    <div class="modal-title">确认投递？</div>
+    <div class="modal-content" id="modalWishPreview"></div>
+    <div class="modal-row">
+      <button class="modal-btn btn-cancel" onclick="closeModal('modalSubmit')">取消</button>
+      <button class="modal-btn btn-confirm" onclick="doSubmit()">投递</button>
+    </div>
+  </div>
+</div>
+
+<!-- 查看愿望详情弹窗 -->
+<div class="modal-mask" id="modalDetail">
+  <div class="modal">
+    <div class="modal-title" id="detailTitle"></div>
+    <div class="modal-content" id="detailContent"></div>
+    <div class="modal-row">
+      <button class="modal-btn btn-cancel" onclick="closeModal('modalDetail')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 驳回弹窗 -->
+<div class="modal-mask" id="modalReject">
+  <div class="modal">
+    <div class="modal-title">驳回理由</div>
+    <textarea class="modal-input" id="rejectReason" placeholder="请填写驳回理由..." maxlength="200"></textarea>
+    <div class="modal-row">
+      <button class="modal-btn btn-cancel" onclick="closeModal('modalReject')">取消</button>
+      <button class="modal-btn btn-confirm" onclick="doReject()">确认驳回</button>
+    </div>
+  </div>
+</div>
+
+<script src="common.js"></script>
+<script>
+// ─── 常量 ───────────────────────────────────────────────
+const STORAGE_KEY = 'aion_wish_pool';
+const MAX_PER_DAY = 3;
+
+// ─── 状态 ───────────────────────────────────────────────
+let wishes = [];
+let currentViewItem = null;
+
+// ─── 初始化 ─────────────────────────────────────────────
+(function init() {
+  load();
+  updateRemainCount();
+  updateStats();
+  loadMyHistory();
+  loadAll();
+  // 重置时间
+  const next = getNextResetTime();
+  document.getElementById('dailyReset').textContent = '下一波: ' + next;
+  setInterval(() => {
+    document.getElementById('dailyReset').textContent = '下一波: ' + getNextResetTime();
+  }, 60000);
+})();
+
+// ─── 加载 ───────────────────────────────────────────────
+function load() {
+  try { wishes = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch(e) { wishes = []; }
+}
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(wishes));
+}
+
+// ─── 统计数据 ───────────────────────────────────────────
+function updateStats() {
+  const today = getDateStr();
+  const todayWishes = wishes.filter(w => w.date === today);
+  const todayCount = todayWishes.length;
+  document.getElementById('statTotal').textContent = wishes.length;
+  document.getElementById('statPending').textContent = wishes.filter(w => w.status === 'pending').length;
+  document.getElementById('statDone').textContent = wishes.filter(w => w.status === 'done').length;
+  document.getElementById('statRejected').textContent = wishes.filter(w => w.status === 'rejected').length;
+}
+
+function updateRemainCount() {
+  const today = getDateStr();
+  const todayCount = wishes.filter(w => w.date === today).length;
+  const left = Math.max(0, MAX_PER_DAY - todayCount);
+  document.getElementById('remainCount').textContent = '今日剩余: ' + left + '/' + MAX_PER_DAY + ' 条';
+}
+
+// ─── 投递 ───────────────────────────────────────────────
+function confirmSubmit() {
+  const content = document.getElementById('wishContent').value.trim();
+  if (!content) { showToast('先写点什么吧~'); return; }
+  const today = getDateStr();
+  const todayCount = wishes.filter(w => w.date === today).length;
+  if (todayCount >= MAX_PER_DAY) {
+    showToast('今日投递次数用完啦，明天再来~'); return;
+  }
+  document.getElementById('modalWishPreview').textContent = content;
+  openModal('modalSubmit');
+}
+
+function doSubmit() {
+  const content = document.getElementById('wishContent').value.trim();
+  const wish = {
+    id: Date.now(),
+    content: content,
+    date: getDateStr(),
+    time: getTimeStr(),
+    status: 'pending',   // pending | reviewing | done | rejected
+    reviewing: false,
+    rejectedReason: '',
+    createdAt: Date.now()
+  };
+  wishes.unshift(wish);
+  save();
+  closeModal('modalSubmit');
+  document.getElementById('wishContent').value = '';
+  updateRemainCount();
+  updateStats();
+  loadMyHistory();
+  showToast('✨ 愿望已投入池中');
+}
+
+// ─── 历史 ───────────────────────────────────────────────
+function loadMyHistory() {
+  const el = document.getElementById('myHistoryList');
+  const pending = wishes.filter(w => w.status === 'pending');
+  const reviewing = wishes.filter(w => w.status === 'reviewing');
+  const done = wishes.filter(w => w.status === 'done').slice(0, 20);
+  const rejected = wishes.filter(w => w.status === 'rejected').slice(0, 20);
+  const items = [...reviewing, ...pending, ...done, ...rejected];
+  if (!items.length) { el.innerHTML = '<div class="empty">还没有投递记录~<br>去写第一条愿望吧</div>'; return; }
+  el.innerHTML = items.map(w => renderItem(w, true)).join('');
+}
+
+function loadAll() {
+  const el = document.getElementById('allList');
+  const items = [...wishes].sort((a, b) => b.createdAt - a.createdAt);
+  if (!items.length) { el.innerHTML = '<div class="empty">暂无记录</div>'; return; }
+  el.innerHTML = items.map(w => renderItem(w, false)).join('');
+}
+
+function renderItem(w, showStatus) {
+  const statusMap = {
+    pending: { cls: 'tag-pending', text: '待捞取' },
+    reviewing: { cls: 'tag-reviewing', text: '处理中' },
+    done: { cls: 'tag-done', text: '已实现' },
+    rejected: { cls: 'tag-rejected', text: '已驳回' }
+  };
+  const s = statusMap[w.status] || statusMap.pending;
+  const title = w.content.length > 20 ? w.content.substring(0, 20) + '…' : w.content;
+  const rejectNote = w.status === 'rejected' && w.rejectedReason ? `<div style="font-size:11px;color:#d16464;margin-top:4px">驳回: ${escHtml(w.rejectedReason)}</div>` : '';
+  return `<div class="item" onclick="showDetail(${w.id})">
+    <div class="item-top">
+      <div class="item-title">${escHtml(title)}</div>
+      ${showStatus ? `<span class="tag ${s.cls}">${s.text}</span>` : ''}
+    </div>
+    <div class="item-content">${escHtml(w.content)}</div>
+    ${rejectNote}
+    <div style="font-size:11px;color:#444;margin-top:4px">${w.date} ${w.time}</div>
+  </div>`;
+}
+
+// ─── 详情 ───────────────────────────────────────────────
+function showDetail(id) {
+  const w = wishes.find(x => x.id === id);
+  if (!w) return;
+  document.getElementById('detailTitle').textContent = w.status === 'pending' ? '📝 待处理愿望' : w.status === 'reviewing' ? '🔄 处理中' : w.status === 'done' ? '✅ 已实现' : '❌ 已驳回';
+  let content = escHtml(w.content);
+  if (w.status === 'rejected' && w.rejectedReason) content += '\n\n📌 驳回理由：' + escHtml(w.rejectedReason);
+  document.getElementById('detailContent').textContent = content;
+  openModal('modalDetail');
+}
+
+// ─── AI 专用接口（被 chat.js 调用）───────────────────────
+function getPendingCount() {
+  return wishes.filter(w => w.status === 'pending' || w.status === 'reviewing').length;
+}
+
+function pickRandom() {
+  const pending = wishes.filter(w => w.status === 'pending');
+  if (!pending.length) return null;
+  const picked = pending[Math.floor(Math.random() * pending.length)];
+  picked.status = 'reviewing';
+  picked.reviewingAt = Date.now();
+  save();
+  updateStats();
+  loadMyHistory();
+  return JSON.stringify(picked);
+}
+
+function fulfillWish(id) {
+  const w = wishes.find(x => x.id === id);
+  if (!w || w.status !== 'reviewing') return false;
+  w.status = 'done';
+  w.doneAt = Date.now();
+  save();
+  updateStats();
+  loadMyHistory();
+  loadAll();
+  return true;
+}
+
+function rejectWish(id, reason) {
+  const w = wishes.find(x => x.id === id);
+  if (!w || w.status !== 'reviewing') return false;
+  w.status = 'rejected';
+  w.rejectedReason = (reason || '').trim();
+  w.rejectedAt = Date.now();
+  save();
+  updateStats();
+  loadMyHistory();
+  loadAll();
+  return true;
+}
+
+function getReviewingWish() {
+  const w = wishes.find(x => x.status === 'reviewing');
+  return w ? JSON.stringify(w) : null;
+}
+
+function getRejectReason(id) {
+  const w = wishes.find(x => x.id === id);
+  return w && w.status === 'rejected' && w.rejectedReason ? w.rejectedReason : '';
+}
+
+// ─── 弹窗 ───────────────────────────────────────────────
+function openModal(id) {
+  document.getElementById(id).classList.add('show');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('show');
+  if (id === 'modalReject') document.getElementById('rejectReason').value = '';
+}
+
+// ─── Tab 切换 ───────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    const name = tab.id.replace('tab', '');
+    document.getElementById('content' + name).classList.add('active');
+    if (name === '历史') loadMyHistory();
+    if (name === '全部') loadAll();
+  });
+});
+
+// ─── 工具 ───────────────────────────────────────────────
+function getDateStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + pad0(d.getMonth()+1) + '-' + pad0(d.getDate());
+}
+function getTimeStr() {
+  const d = new Date();
+  return pad0(d.getHours()) + ':' + pad0(d.getMinutes());
+}
+function pad0(n) { return n < 10 ? '0' + n : '' + n; }
+function getNextResetTime() {
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(0, 0, 0, 0);
+  const diff = tomorrow - now;
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  return (h > 0 ? h+'h' : '') + m+'min';
+}
+function escHtml(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function showToast(msg) {
+  if (typeof window.showToast === 'function') { window.showToast(msg); return; }
+  const t = document.createElement('div');
+  t.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(40,40,60,0.95);color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;z-index:999;transition:opacity .3s';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity='0'; setTimeout(() => t.remove(), 300); }, 2000);
+}
+</script>
+</body>
+</html>
