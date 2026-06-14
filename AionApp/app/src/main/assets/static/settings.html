@@ -196,14 +196,35 @@ function exportBackup() {
       try { data[key] = JSON.parse(localStorage.getItem(key)); } catch { data[key] = localStorage.getItem(key); }
     }
   }
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'aion-backup-' + new Date().toISOString().slice(0, 10) + '.json';
-  a.click();
-  URL.revokeObjectURL(url);
-  alert('备份已下载！共 ' + Object.keys(data).length + ' 项数据');
+  const count = Object.keys(data).length;
+  if (count === 0) { showToast('没有可导出的数据'); return; }
+  const jsonStr = JSON.stringify(data, null, 2);
+  const filename = 'aion-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+
+  // 优先用原生桥接受控地保存到 Downloads（Android 11+ 兼容）
+  if (typeof window.AionFileSave !== 'undefined' && window.AionFileSave.saveText) {
+    window.AionFileSave.saveText(jsonStr, filename);
+    return;
+  }
+
+  // WebView Fallback：转 base64 下载
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const reader = new FileReader();
+  reader.onload = function() {
+    const base64 = reader.result.split(',')[1];
+    if (typeof window.AndroidBridge !== 'undefined' && window.AndroidBridge.saveFile) {
+      window.AndroidBridge.saveFile(base64, filename);
+      showToast('✅ 已保存到: ' + filename);
+    } else {
+      // 兜底：直接用 a 标签（大多数 WebView 不支持，提示用户去下载记录找）
+      const a = document.createElement('a');
+      a.href = reader.result;
+      a.download = filename;
+      a.click();
+      showToast('📥 已生成文件: ' + filename + '（若未下载，请到下载记录中查找）');
+    }
+  };
+  reader.readAsDataURL(blob);
 }
 
 function importBackup(file) {
