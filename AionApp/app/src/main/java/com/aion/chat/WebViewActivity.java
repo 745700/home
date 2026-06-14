@@ -397,10 +397,11 @@ public class WebViewActivity extends AppCompatActivity {
                 });
             }
         }, "AionSettings");
-            // 许愿池 JS 桥（localStorage 操作）
+
+        // 许愿池 JS 桥
+        webView.addJavascriptInterface(new Object() {
             @JavascriptInterface
             public String pickRandomWish() {
-                // 由前端页面自行处理，桥接空实现
                 return "ok";
             }
         }, "AionWishPool");
