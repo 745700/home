@@ -59,6 +59,7 @@ public class WebViewActivity extends AppCompatActivity {
     private int retryCount = 0;
     private static final int MAX_RETRY = 5;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private FocusLockManager focusLockManager = null;
     private ValueCallback<Uri[]> fileCallback;
     private PermissionRequest pendingPermRequest;
 
@@ -117,6 +118,7 @@ public class WebViewActivity extends AppCompatActivity {
         webView = new WebView(this);
         webView.setBackgroundColor(android.graphics.Color.TRANSPARENT);
         setContentView(webView);
+        focusLockManager = new FocusLockManager(this, webView);
 
         // 状态栏图标样式桥接（让网页可以根据主题动态切换深色/浅色图标）
         webView.addJavascriptInterface(new Object() {
@@ -238,6 +240,54 @@ public class WebViewActivity extends AppCompatActivity {
                 });
             }
         }, "AionNavigator");
+
+        // ── 专注锁桥接 ──
+        webView.addJavascriptInterface(new Object() {
+            @JavascriptInterface
+            public void lock(int minutes) {
+                mainHandler.post(() -> {
+                    if (focusLockManager != null) focusLockManager.lock(minutes);
+                });
+            }
+            @JavascriptInterface
+            public void unlock() {
+                mainHandler.post(() -> {
+                    if (focusLockManager != null) focusLockManager.unlock();
+                });
+            }
+            @JavascriptInterface
+            public boolean isLocked() {
+                return focusLockManager != null && focusLockManager.isLocked();
+            }
+            @JavascriptInterface
+            public boolean canUserSend() {
+                return focusLockManager != null && focusLockManager.canUserSendMessage();
+            }
+            @JavascriptInterface
+            public void setAIMessage(String text) {
+                mainHandler.post(() -> {
+                    if (focusLockManager != null) focusLockManager.setAiReplyText(text);
+                });
+            }
+            @JavascriptInterface
+            public void onUserMessage(String msg) {
+                mainHandler.post(() -> {
+                    if (focusLockManager != null) focusLockManager.onUserMessageSent(msg);
+                });
+            }
+            @JavascriptInterface
+            public void setOnLocked(String jsCode) {
+                if (focusLockManager != null) focusLockManager.setOnLockedCallback(jsCode);
+            }
+            @JavascriptInterface
+            public void setOnUnlocked(String jsCode) {
+                if (focusLockManager != null) focusLockManager.setOnUnlockedCallback(jsCode);
+            }
+            @JavascriptInterface
+            public void setOnUserMessage(String jsCode) {
+                if (focusLockManager != null) focusLockManager.setOnUserMessageCallback(jsCode);
+            }
+        }, "AionFocusLock");
 
         // 图片保存桥接（WebView 不支持 blob URL 下载，用原生方法写入相册）
         webView.addJavascriptInterface(new Object() {
@@ -890,9 +940,14 @@ public class WebViewActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         mainHandler.removeCallbacksAndMessages(null);
+        if (focusLockManager != null) {
+            focusLockManager.destroy();
+            focusLockManager = null;
+        }
         if (webView != null) {
             webView.destroy();
         }
         super.onDestroy();
     }
 }
+
