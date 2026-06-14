@@ -159,6 +159,19 @@
       </div>
       <button class="config-btn" onclick="toggleConfig(event)">&#9881;</button>
     </div>
+    <!-- 许愿池悬浮条 -->
+    <div class="wish-banner" id="wishBanner" style="display:none">
+      <div class="wish-banner-inner" id="wishBannerInner">
+        <span class="wish-banner-icon">🗝</span>
+        <span class="wish-banner-text" id="wishBannerText">正在看你的小纸条...</span>
+        <div class="wish-banner-btns">
+          <button class="wish-btn wish-btn-done" id="wishBtnFulfill" onclick="wishFulfill()">✅ 实现</button>
+          <button class="wish-btn wish-btn-reject" id="wishBtnReject" onclick="wishOpenReject()">❌ 驳回</button>
+        </div>
+      </div>
+      <div class="wish-banner-count" id="wishBannerCount"></div>
+    </div>
+
     <div class="config-popup" id="configPopup">
       <label>模型</label>
       <select id="modelSelect" onchange="changeModel()"></select>
