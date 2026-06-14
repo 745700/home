@@ -289,6 +289,37 @@ public class WebViewActivity extends AppCompatActivity {
             }
         }, "AionFocusLock");
 
+        // 通用文件保存桥（用于设置备份 JSON 等文本文件 → Downloads 目录）
+        webView.addJavascriptInterface(new Object() {
+            @JavascriptInterface
+            public void saveText(String content, String filename) {
+                mainHandler.post(() -> {
+                    try {
+                        byte[] bytes = content.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                        String encoded = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP);
+                        byte[] decoded = android.util.Base64.decode(encoded, android.util.Base64.DEFAULT);
+                        ContentValues values = new ContentValues();
+                        String mime = "application/json";
+                        if (filename.endsWith(".txt")) mime = "text/plain";
+                        else if (filename.endsWith(".html")) mime = "text/html";
+                        values.put(MediaStore.Downloads.DISPLAY_NAME, filename);
+                        values.put(MediaStore.Downloads.MIME_TYPE, mime);
+                        values.put(MediaStore.Downloads.RELATIVE_PATH, "Download/");
+                        Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                        if (uri != null) {
+                            java.io.OutputStream os = getContentResolver().openOutputStream(uri);
+                            if (os != null) { os.write(decoded); os.close(); }
+                            Toast.makeText(WebViewActivity.this, "✅ 已保存到 Download/" + filename, Toast.LENGTH_SHORT).show();
+                        } else {
+                            Toast.makeText(WebViewActivity.this, "❌ 保存失败", Toast.LENGTH_SHORT).show();
+                        }
+                    } catch (Exception e) {
+                        mainHandler.post(() -> Toast.makeText(WebViewActivity.this, "❌ 保存失败: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                    }
+                });
+            }
+        }, "AionFileSave");
+
         // 图片保存桥接（WebView 不支持 blob URL 下载，用原生方法写入相册）
         webView.addJavascriptInterface(new Object() {
             @JavascriptInterface
