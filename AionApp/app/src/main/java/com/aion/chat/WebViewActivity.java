@@ -397,6 +397,13 @@ public class WebViewActivity extends AppCompatActivity {
                 });
             }
         }, "AionSettings");
+            // 许愿池 JS 桥（localStorage 操作）
+            @JavascriptInterface
+            public String pickRandomWish() {
+                // 由前端页面自行处理，桥接空实现
+                return "ok";
+            }
+        }, "AionWishPool");
 
         // 运行时权限请求结果回调桥（Android 6.0+ 权限回调）
         webView.addJavascriptInterface(new Object() {
@@ -563,6 +570,7 @@ public class WebViewActivity extends AppCompatActivity {
                     routeMap.put("/sentinel", "sentinel.html");
                     routeMap.put("/focus", "focus.html");
                     routeMap.put("/permissions", "permissions.html");
+                    routeMap.put("/wish-pool", "wish-pool.html");
                     routeMap.put("/camera", "camera.html");
                     routeMap.put("/", "home.html");
                     if (routeMap.containsKey(path)) {
