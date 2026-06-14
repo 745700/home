@@ -359,9 +359,40 @@ public class WebViewActivity extends AppCompatActivity {
 
             @JavascriptInterface
             public void requestPermission(String perm) {
+                if (perm == null || perm.isEmpty()) return;
                 mainHandler.post(() -> {
                     if (checkPermission(perm)) {
-                        // 已在 permission granted 回调里通知前端，这里只处理跳转
+                        webView.evaluateJavascript(
+                            "if(window._onPermissionResult)window._onPermissionResult('"+perm+"',true);",
+                            null);
+                        return;
+                    }
+                    try {
+                        ActivityCompat.requestPermissions(WebViewActivity.this,
+                            new String[]{perm}, 1001);
+                    } catch (Exception e) {
+                        // 部分权限不支持运行时请求，跳转设置
+                        openAppSettings();
+                    }
+                });
+            }
+
+            @JavascriptInterface
+            public void openNotificationSettings() {
+                mainHandler.post(() -> {
+                    try {
+                        Intent intent = new Intent();
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            intent.setAction(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+                            intent.putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
+                        } else {
+                            intent.setAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                            intent.setData(Uri.parse("package:" + getPackageName()));
+                        }
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                    } catch (Exception e) {
+                        openAppSettings();
                     }
                 });
             }
