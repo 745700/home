@@ -1840,3 +1840,63 @@ body[data-theme="dark"] .shop-card:active { background: #333; }
 .us-icon { font-size: 16px; flex-shrink: 0; }
 .us-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .us-time { color: var(--text3); flex-shrink: 0; }
+
+
+/* ─── 许愿池悬浮条 ─── */
+.wish-banner {
+  background: linear-gradient(135deg, #2a2a4a, #1e1e38);
+  border-bottom: 1.5px solid rgba(136,149,248,0.3);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: wishSlideIn 0.3s ease;
+}
+@keyframes wishSlideIn {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.wish-banner-inner {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.wish-banner-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.wish-banner-text {
+  font-size: 13px;
+  color: #c8c8d4;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wish-banner-btns {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.wish-btn {
+  padding: 4px 10px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: transform .1s, opacity .2s;
+}
+.wish-btn:active { transform: scale(0.93); }
+.wish-btn-done { background: rgba(100,210,150,0.2); color: #6dd29b; }
+.wish-btn-reject { background: rgba(210,100,100,0.2); color: #d16464; }
+.wish-banner-count {
+  font-size: 11px;
+  color: #8895f8;
+  flex-shrink: 0;
+  background: rgba(136,149,248,0.15);
+  padding: 3px 8px;
+  border-radius: 12px;
+}
