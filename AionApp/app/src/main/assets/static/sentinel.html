@@ -12,12 +12,25 @@ body { background: #f5f5f5; }
 .back-btn { color: #333; }
 .top-bar h2 { color: #333; }
 
+/* ── 标签页 ── */
+.sentinel-tabs {
+  display: flex; gap: 6px; padding: 10px 12px 0;
+}
+.sentinel-tab {
+  flex: 1; border: 1px solid var(--border); background: var(--surface2);
+  border-radius: 8px; padding: 8px 0; font-size: 13px; font-weight: 600;
+  cursor: pointer; text-align: center; color: var(--text2);
+}
+.sentinel-tab.active {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+}
+.sentinel-pane { display: none; }
+.sentinel-pane.active { display: block; }
+
+/* ── 状态横幅 ── */
 .status-banner {
-  margin: 12px;
-  border-radius: 16px;
-  padding: 24px 16px;
-  text-align: center;
-  color: white;
+  margin: 12px; border-radius: 16px; padding: 24px 16px;
+  text-align: center; color: white;
 }
 .status-banner.on { background: linear-gradient(135deg, #4CAF50, #2E7D32); }
 .status-banner.off { background: linear-gradient(135deg, #9e9e9e, #616161); }
@@ -25,27 +38,24 @@ body { background: #f5f5f5; }
 .status-banner .s-title { font-size: 20px; font-weight: 600; }
 .status-banner .s-desc { font-size: 13px; opacity: 0.8; margin-top: 4px; }
 .toggle-btn {
-  margin-top: 16px;
-  padding: 10px 32px;
-  border-radius: 24px;
-  border: 2px solid rgba(255,255,255,0.5);
-  background: rgba(255,255,255,0.2);
-  color: white;
-  font-size: 15px;
-  font-weight: 500;
-  cursor: pointer;
+  margin-top: 16px; padding: 10px 32px; border-radius: 24px;
+  border: 2px solid rgba(255,255,255,0.5); background: rgba(255,255,255,0.2);
+  color: white; font-size: 15px; font-weight: 500; cursor: pointer;
 }
 .toggle-btn.active { background: white; color: #4CAF50; }
 
+/* ── 通用卡片 ── */
 .card { background: white; margin: 0 12px 12px; border-radius: 14px; padding: 16px; }
 .card-title { font-size: 15px; font-weight: 600; color: #333; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
 
+/* ── 行项目 ── */
 .row-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
 .row-item:last-child { border-bottom: none; }
 .row-item .ri-label { font-size: 14px; color: #555; }
-.row-item .ri-value { font-size: 14px; color: #333; font-weight: 500; text-align: right; max-width: 60%; }
-.edit-btn { color: #4CAF50; font-size: 13px; cursor: pointer; }
+.row-item .ri-value { font-size: 14px; color: #333; font-weight: 500; text-align: right; }
+.edit-btn { color: #4CAF50; font-size: 13px; cursor: pointer; margin-left: 8px; }
 
+/* ── 联系人 ── */
 .contact-item {
   display: flex; align-items: center; gap: 12px;
   padding: 10px 0; border-bottom: 1px solid #f0f0f0;
@@ -54,17 +64,15 @@ body { background: #f5f5f5; }
 .contact-item .ci-avatar { width: 40px; height: 40px; border-radius: 50%; background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 20px; }
 .contact-item .ci-name { font-size: 14px; font-weight: 500; color: #333; }
 .contact-item .ci-phone { font-size: 12px; color: #aaa; margin-top: 2px; }
-
 .add-contact-btn {
   width: 100%; padding: 10px; border: 1px dashed #ddd; border-radius: 8px;
   background: none; color: #4CAF50; font-size: 14px; cursor: pointer; margin-top: 8px;
 }
 
+/* ── 开关 ── */
 .switch-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; }
 .switch-label { font-size: 14px; color: #333; }
 .switch-desc { font-size: 12px; color: #aaa; margin-top: 2px; }
-
-/* iOS switch style */
 .toggle-switch {
   position: relative; width: 48px; height: 28px; flex-shrink: 0;
 }
@@ -75,26 +83,25 @@ body { background: #f5f5f5; }
 }
 .toggle-slider:before {
   position: absolute; content: ""; height: 22px; width: 22px;
-  left: 3px; bottom: 3px; background-color: white;
-  transition: .3s; border-radius: 50%;
+  left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%;
 }
 input:checked + .toggle-slider { background-color: #4CAF50; }
 input:checked + .toggle-slider:before { transform: translateX(20px); }
 
-/* SOS button */
+/* ── SOS ── */
 .sos-btn {
   width: 100%; padding: 14px; border-radius: 12px; border: none;
-  background: linear-gradient(135deg, #ff5252, #d32f2f);
-  color: white; font-size: 16px; font-weight: 600; cursor: pointer;
-  margin: 12px 0; display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: linear-gradient(135deg, #ff5252, #d32f2f); color: white;
+  font-size: 16px; font-weight: 600; cursor: pointer; margin: 12px 0;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
   box-shadow: 0 4px 12px rgba(255,82,82,0.3);
 }
-
 .location-status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #888; margin-top: 4px; }
 .location-dot { width: 8px; height: 8px; border-radius: 50%; }
 .location-dot.on { background: #4CAF50; }
 .location-dot.off { background: #ccc; }
 
+/* ── 对话框 ── */
 .dialog-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,0.5);
   z-index: 100; display: none; align-items: flex-end; justify-content: center;
@@ -113,6 +120,60 @@ input:checked + .toggle-slider:before { transform: translateX(20px); }
 .btn-cancel { flex: 1; background: #f0f0f0; color: #666; border: none; border-radius: 10px; padding: 12px; font-size: 15px; cursor: pointer; }
 .btn-confirm { flex: 1; background: #4CAF50; color: white; border: none; border-radius: 10px; padding: 12px; font-size: 15px; cursor: pointer; }
 
+/* ── 监控画面 ── */
+.monitor-wrap {
+  position: relative; background: #000; margin: 10px 12px;
+  border-radius: 12px; overflow: hidden; min-height: 240px;
+}
+.monitor-canvas {
+  width: 100%; display: block; border-radius: 12px;
+}
+.monitor-placeholder {
+  width: 100%; min-height: 240px; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; color: rgba(255,255,255,0.5);
+  font-size: 14px; gap: 12px;
+}
+.motion-indicator {
+  position: absolute; top: 10px; right: 10px;
+  padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;
+  background: rgba(0,0,0,0.5); color: #fff;
+}
+.motion-indicator.alert {
+  background: #ff5252;
+  animation: blink 0.6s ease-in-out infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.monitor-toolbar {
+  display: flex; gap: 8px; padding: 8px 12px;
+  background: rgba(0,0,0,0.7);
+  position: absolute; bottom: 0; left: 0; right: 0;
+  border-radius: 0 0 12px 12px;
+}
+.monitor-btn {
+  flex: 1; padding: 7px 0; border-radius: 8px; border: none;
+  font-size: 13px; font-weight: 600; cursor: pointer; text-align: center;
+}
+.monitor-btn.start { background: #4CAF50; color: #fff; }
+.monitor-btn.stop { background: #ff5252; color: #fff; }
+.monitor-btn.snapshot { background: rgba(255,255,255,0.2); color: #fff; }
+.monitor-stats {
+  position: absolute; top: 10px; left: 10px;
+  padding: 3px 8px; border-radius: 8px;
+  background: rgba(0,0,0,0.5); color: #fff; font-size: 11px;
+}
+
+/* ── 告警历史 ── */
+.alert-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+}
+.alert-item:last-child { border-bottom: none; }
+.alert-icon { font-size: 22px; flex-shrink: 0; }
+.alert-body { flex: 1; min-width: 0; }
+.alert-time { font-size: 12px; color: var(--text2); font-family: monospace; }
+.alert-text { font-size: 13px; color: var(--text); margin-top: 2px; }
+.alert-img { width: 48px; height: 48px; border-radius: 6px; object-fit: cover; background: #eee; flex-shrink: 0; }
+
 .info-box { background: #fff3e0; border-radius: 10px; padding: 12px; font-size: 13px; color: #e65100; line-height: 1.6; margin: 12px; }
 </style>
 </head>
@@ -123,67 +184,110 @@ input:checked + .toggle-slider:before { transform: translateX(20px); }
     <h2>🛡 哨兵模式</h2>
   </div>
 
-  <!-- 状态横幅 -->
-  <div class="status-banner off" id="statusBanner">
-    <div class="s-icon" id="statusIcon">🛡</div>
-    <div class="s-title" id="statusTitle">守护已暂停</div>
-    <div class="s-desc" id="statusDesc">设置家和紧急联系人后开启</div>
-    <button class="toggle-btn" id="toggleBtn" onclick="toggleSentinel()">开启守护</button>
+  <!-- 标签页 -->
+  <div class="sentinel-tabs">
+    <div class="sentinel-tab active" id="tabGuard" onclick="switchSentinelTab('guard')">🛡 守护</div>
+    <div class="sentinel-tab" id="tabMonitor" onclick="switchSentinelTab('monitor')">🖥 监控</div>
   </div>
 
-  <!-- SOS 按钮 -->
-  <div class="card">
-    <div class="sos-btn" onclick="triggerSOS()">🆘 发送 SOS 求助</div>
-    <div style="font-size:12px;color:#aaa;text-align:center;">同时向所有紧急联系人发送位置求助</div>
-  </div>
+  <!-- ═══════════════ 守护设置面板 ═══════════════ -->
+  <div class="sentinel-pane active" id="paneGuard">
 
-  <!-- 紧急联系人 -->
-  <div class="card">
-    <div class="card-title">📞 紧急联系人</div>
-    <div id="contactList"></div>
-    <button class="add-contact-btn" onclick="showAddContact()">+ 添加联系人</button>
-  </div>
-
-  <!-- 家/围栏设置 -->
-  <div class="card">
-    <div class="card-title">🏠 安全区域</div>
-    <div class="switch-row">
-      <div>
-        <div class="switch-label">围栏守护</div>
-        <div class="switch-desc">离开家周围区域时通知联系人</div>
-      </div>
-      <label class="toggle-switch">
-        <input type="checkbox" id="fenceToggle" onchange="saveSettings()">
-        <span class="toggle-slider"></span>
-      </label>
+    <!-- 状态横幅 -->
+    <div class="status-banner off" id="statusBanner">
+      <div class="s-icon" id="statusIcon">🛡</div>
+      <div class="s-title" id="statusTitle">守护已暂停</div>
+      <div class="s-desc" id="statusDesc">设置家和紧急联系人后开启</div>
+      <button class="toggle-btn" id="toggleBtn" onclick="toggleSentinel()">开启守护</button>
     </div>
-    <div class="row-item" style="cursor:pointer" onclick="setHomeLocation()">
-      <div>
-        <div class="switch-label">家的位置</div>
-        <div class="location-status">
-          <span class="location-dot" id="homeLocDot"></span>
-          <span id="homeLocText">未设置</span>
+
+    <!-- SOS -->
+    <div class="card">
+      <div class="sos-btn" onclick="triggerSOS()">🆘 发送 SOS 求助</div>
+      <div style="font-size:12px;color:#aaa;text-align:center;">同时向所有紧急联系人发送位置求助</div>
+    </div>
+
+    <!-- 紧急联系人 -->
+    <div class="card">
+      <div class="card-title">📞 紧急联系人</div>
+      <div id="contactList"></div>
+      <button class="add-contact-btn" onclick="showAddContact()">+ 添加联系人</button>
+    </div>
+
+    <!-- 家/围栏设置 -->
+    <div class="card">
+      <div class="card-title">🏠 安全区域</div>
+      <div class="switch-row">
+        <div>
+          <div class="switch-label">围栏守护</div>
+          <div class="switch-desc">离开家周围区域时通知联系人</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="fenceToggle" onchange="saveSettings()">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="row-item" style="cursor:pointer" onclick="setHomeLocation()">
+        <div>
+          <div class="switch-label">家的位置</div>
+          <div class="location-status">
+            <span class="location-dot" id="homeLocDot"></span>
+            <span id="homeLocText">未设置</span>
+          </div>
+        </div>
+        <div style="font-size:13px;color:#4CAF50">设置 ›</div>
+      </div>
+      <div class="row-item">
+        <div class="switch-label">围栏半径</div>
+        <div>
+          <span class="ri-value" id="fenceRadiusText">200 米</span>
+          <span class="edit-btn" onclick="setFenceRadius()">修改</span>
         </div>
       </div>
-      <div style="font-size:13px;color:#4CAF50">设置 ›</div>
     </div>
-    <div class="row-item">
-      <div class="switch-label">围栏半径</div>
-      <div class="row-item">
-        <div class="ri-value" id="fenceRadiusText">200 米</div>
-        <div class="edit-btn" onclick="setFenceRadius()">修改</div>
+
+    <!-- 说明 -->
+    <div class="info-box">
+      💡 使用说明：<br>
+      1. 先设置家的位置（需要定位权限）<br>
+      2. 添加至少一个紧急联系人<br>
+      3. 开启守护后，App 会在后台监测<br>
+      4. SOS 按钮会立即向所有联系人发送您的位置
+    </div>
+
+  </div>
+  <!-- ═══════════════ 结束守护面板 ═══════════════ -->
+
+
+  <!-- ═══════════════ 实时监控面板 ═══════════════ -->
+  <div class="sentinel-pane" id="paneMonitor">
+
+    <!-- 监控画面 -->
+    <div class="monitor-wrap" id="monitorWrap">
+      <div class="monitor-placeholder" id="monitorPlaceholder">
+        <span style="font-size:40px">📷</span>
+        <span>点击下方「开始监控」启用摄像头</span>
+      </div>
+      <canvas id="monitorCanvas" class="monitor-canvas" style="display:none"></canvas>
+      <div class="monitor-stats" id="monitorStats" style="display:none"></div>
+      <div class="motion-indicator" id="motionIndicator" style="display:none">🚶 画面静止</div>
+      <div class="monitor-toolbar" id="monitorToolbar">
+        <button class="monitor-btn start" id="monitorStartBtn" onclick="startMonitoring()">▶ 开始监控</button>
+        <button class="monitor-btn snapshot" onclick="takeSnapshot()">📸 抓拍</button>
       </div>
     </div>
-  </div>
 
-  <!-- 使用说明 -->
-  <div class="info-box">
-    💡 使用说明：<br>
-    1. 先设置家的位置（需要定位权限）<br>
-    2. 添加至少一个紧急联系人<br>
-    3. 开启守护后，App 会在后台监测<br>
-    4. SOS 按钮会立即向所有联系人发送您的位置
+    <!-- 告警历史 -->
+    <div class="card" style="margin-top:0">
+      <div class="card-title">📋 告警记录 <span id="alertCount" style="font-size:12px;color:#aaa;font-weight:400"></span></div>
+      <div id="alertList" style="max-height:300px;overflow-y:auto">
+        <div style="font-size:13px;color:#aaa;text-align:center;padding:16px">暂无告警记录</div>
+      </div>
+    </div>
+
   </div>
+  <!-- ═══════════════ 结束监控面板 ═══════════════ -->
+
 </div>
 
 <!-- 添加联系人对话框 -->
@@ -208,7 +312,9 @@ input:checked + .toggle-slider:before { transform: translateX(20px); }
 <script src="common.js"></script>
 <script>
 const SENTINEL_KEY = 'aion_sentinel_settings';
+const ALERTS_KEY = 'aion_sentinel_alerts';
 
+// ── 设置存储 ──
 let _settings = {
   enabled: false,
   fenceEnabled: false,
@@ -218,37 +324,45 @@ let _settings = {
   homeRadius: 200,
   contacts: [],
 };
+let _alerts = [];
 
 function _load() {
   try { _settings = JSON.parse(localStorage.getItem(SENTINEL_KEY)) || _settings; } catch {}
+  try { _alerts = JSON.parse(localStorage.getItem(ALERTS_KEY)) || []; } catch {}
 }
 function _save() {
   localStorage.setItem(SENTINEL_KEY, JSON.stringify(_settings));
 }
+function _saveAlerts() {
+  localStorage.setItem(ALERTS_KEY, JSON.stringify(_alerts.slice(0, 50)));
+}
 
+// ── 标签页切换 ──
+function switchSentinelTab(tab) {
+  document.querySelectorAll('.sentinel-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.sentinel-pane').forEach(p => p.classList.remove('active'));
+  if (tab === 'guard') {
+    document.getElementById('tabGuard').classList.add('active');
+    document.getElementById('paneGuard').classList.add('active');
+  } else {
+    document.getElementById('tabMonitor').classList.add('active');
+    document.getElementById('paneMonitor').classList.add('active');
+  }
+}
+
+// ── 渲染守护面板 ──
 function render() {
   const s = _settings;
   const banner = document.getElementById('statusBanner');
-  const icon = document.getElementById('statusIcon');
-  const title = document.getElementById('statusTitle');
-  const desc = document.getElementById('statusDesc');
-  const toggleBtn = document.getElementById('toggleBtn');
-
-  if (s.enabled) {
-    banner.className = 'status-banner on';
-    icon.textContent = '🛡';
-    title.textContent = '守护中';
-    desc.textContent = s.contacts.length > 0 ? `已通知 ${s.contacts.length} 位联系人` : '请先添加紧急联系人';
-    toggleBtn.textContent = '关闭守护';
-    toggleBtn.classList.add('active');
-  } else {
-    banner.className = 'status-banner off';
-    icon.textContent = '🛡';
-    title.textContent = '守护已暂停';
-    desc.textContent = '设置家和紧急联系人后开启';
-    toggleBtn.textContent = '开启守护';
-    toggleBtn.classList.remove('active');
-  }
+  document.getElementById('statusIcon').textContent = '🛡';
+  document.getElementById('statusTitle').textContent = s.enabled ? '守护中' : '守护已暂停';
+  document.getElementById('statusDesc').textContent = s.enabled
+    ? (s.contacts.length > 0 ? `已通知 ${s.contacts.length} 位联系人` : '请先添加紧急联系人')
+    : '设置家和紧急联系人后开启';
+  const btn = document.getElementById('toggleBtn');
+  btn.textContent = s.enabled ? '关闭守护' : '开启守护';
+  btn.classList.toggle('active', s.enabled);
+  banner.className = 'status-banner ' + (s.enabled ? 'on' : 'off');
 
   // 联系人
   const list = document.getElementById('contactList');
@@ -281,6 +395,7 @@ function render() {
   document.getElementById('fenceRadiusText').textContent = s.homeRadius + ' 米';
 }
 
+// ── 守护开关 ──
 function toggleSentinel() {
   if (!navigator.geolocation) { showToast('当前设备不支持定位'); return; }
   if (!_settings.homeLat) { showToast('请先设置家的位置'); return; }
@@ -291,29 +406,24 @@ function toggleSentinel() {
   showToast(_settings.enabled ? '🛡 守护已开启' : '⏸ 守护已关闭');
 }
 
+// ── SOS ──
 function triggerSOS() {
-  if (_settings.contacts.length === 0) {
-    showToast('请先添加紧急联系人');
-    return;
-  }
-  if (!navigator.geolocation) {
-    showToast('无法获取位置');
-    return;
-  }
+  if (_settings.contacts.length === 0) { showToast('请先添加紧急联系人'); return; }
+  if (!navigator.geolocation) { showToast('无法获取位置'); return; }
   if (!confirm('确认发送 SOS 求救信息给所有紧急联系人？')) return;
-
   navigator.geolocation.getCurrentPosition(pos => {
     const lat = pos.coords.latitude;
     const lng = pos.coords.longitude;
-    const msg = `🆘 SOS！${new Date().toLocaleString('zh-CN')}\n位置：https://maps.google.com/?q=${lat},${lng}`;
-    showToast(`SOS 已发送！\n正在通知 ${_settings.contacts.length} 位联系人...`);
-    // 实际发送需要短信权限，这里只显示
-    alert('SOS 信息：\n' + msg + '\n\n（需要短信权限才能实际发送）');
+    const mapUrl = `https://maps.google.com/?q=${lat},${lng}`;
+    const msg = `🆘 SOS！${new Date().toLocaleString('zh-CN')}，我需要帮助！\n位置：${mapUrl}`;
+    showToast(`SOS 已发送！正在通知 ${_settings.contacts.length} 位联系人...`);
+    alert('SOS 求救信息：\n' + msg + '\n\n请确保已开启短信权限才能实际发送');
   }, err => {
     showToast('无法获取当前位置：' + err.message);
   });
 }
 
+// ── 联系人管理 ──
 function showAddContact() {
   document.getElementById('contactNameInput').value = '';
   document.getElementById('contactPhoneInput').value = '';
@@ -341,6 +451,7 @@ function deleteContact(idx) {
   showToast('已删除');
 }
 
+// ── 位置设置 ──
 function setHomeLocation() {
   showToast('正在获取当前位置...');
   navigator.geolocation.getCurrentPosition(pos => {
@@ -350,31 +461,203 @@ function setHomeLocation() {
     _save();
     render();
     showToast('✅ 家的位置已设置');
-  }, err => {
-    showToast('定位失败：' + err.message);
-  });
+  }, err => { showToast('定位失败：' + err.message); }, { enableHighAccuracy: true });
 }
-
 function setFenceRadius() {
   const val = prompt('输入围栏半径（米）：', _settings.homeRadius);
   if (val !== null) {
     const r = parseInt(val);
-    if (r > 0) {
-      _settings.homeRadius = r;
-      _save();
-      render();
-      showToast('已更新为 ' + r + ' 米');
-    }
+    if (r > 0) { _settings.homeRadius = r; _save(); render(); showToast('已更新为 ' + r + ' 米'); }
   }
 }
-
 function saveSettings() {
   _settings.fenceEnabled = document.getElementById('fenceToggle').checked;
   _save();
 }
 
+// ── 监控逻辑 ──
+let _monitoring = false;
+let _monitorInterval = null;
+let _lastFrameData = null;
+let _motionFrames = 0;
+let _motionCooldown = 0;
+let _frameCount = 0;
+
+function startMonitoring() {
+  if (_monitoring) {
+    stopMonitoring(); return;
+  }
+  if (!window.AionCamera) { showToast('摄像头不可用，请在App内打开'); return; }
+
+  _monitoring = true;
+  const canvas = document.getElementById('monitorCanvas');
+  const placeholder = document.getElementById('monitorPlaceholder');
+  const indicator = document.getElementById('motionIndicator');
+  const stats = document.getElementById('monitorStats');
+  const startBtn = document.getElementById('monitorStartBtn');
+  const toolbar = document.getElementById('monitorToolbar');
+
+  canvas.style.display = 'block';
+  placeholder.style.display = 'none';
+  indicator.style.display = 'block';
+  stats.style.display = 'block';
+  startBtn.textContent = '⏹ 停止监控';
+  startBtn.className = 'monitor-btn stop';
+
+  showToast('📷 摄像头已启动，开始画面分析...');
+
+  _monitorInterval = setInterval(async () => {
+    try {
+      const frame = await new Promise(resolve => {
+        try {
+          if (window.AionCamera && typeof window.AionCamera.getFrame === 'function') {
+            window.AionCamera.getFrame(resolve);
+          } else { resolve(null); }
+        } catch(e) { resolve(null); }
+      });
+
+      if (!frame) return;
+      _frameCount++;
+
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      img.onload = () => {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+
+        // 像素差分运动检测（缩小到 64x48）
+        const small = document.createElement('canvas');
+        small.width = 64; small.height = 48;
+        small.getContext('2d').drawImage(canvas, 0, 0, 64, 48);
+        const data = small.getContext('2d').getImageData(0, 0, 64, 48).data;
+
+        let diff = 0;
+        if (_lastFrameData) {
+          for (let i = 0; i < data.length; i += 4) {
+            const j = i;
+            const r1 = data[j], g1 = data[j+1], b1 = data[j+2];
+            const r2 = _lastFrameData[j], g2 = _lastFrameData[j+1], b2 = _lastFrameData[j+2];
+            diff += Math.abs(r1-r2) + Math.abs(g1-g2) + Math.abs(b1-b2);
+          }
+          diff = diff / (data.length * 0.75);
+        }
+        _lastFrameData = new Uint8ClampedArray(data);
+
+        // 更新状态标签
+        const fps = Math.round(_frameCount / 3);
+        stats.textContent = `${fps} FPS`;
+
+        if (diff > 12) {
+          _motionFrames++;
+          _motionCooldown = 8;
+          indicator.textContent = '🚶 检测到移动！';
+          indicator.className = 'motion-indicator alert';
+          if (_motionFrames >= 3) {
+            // 连续3帧检测到移动，触发告警
+            onMotionAlert(canvas, diff);
+          }
+        } else {
+          _motionFrames = Math.max(0, _motionFrames - 1);
+          if (_motionCooldown > 0) {
+            _motionCooldown--;
+            indicator.textContent = '🚶 检测到移动！';
+            indicator.className = 'motion-indicator alert';
+          } else {
+            indicator.textContent = '🚶 画面静止';
+            indicator.className = 'motion-indicator';
+          }
+        }
+      };
+      img.src = 'data:image/jpeg;base64,' + frame;
+    } catch(e) { /* silent */ }
+  }, 333); // ~3 FPS 分析
+}
+
+function stopMonitoring() {
+  _monitoring = false;
+  if (_monitorInterval) { clearInterval(_monitorInterval); _monitorInterval = null; }
+  _lastFrameData = null;
+  _motionFrames = 0;
+  _frameCount = 0;
+
+  const canvas = document.getElementById('monitorCanvas');
+  const placeholder = document.getElementById('monitorPlaceholder');
+  const indicator = document.getElementById('motionIndicator');
+  const stats = document.getElementById('monitorStats');
+  const startBtn = document.getElementById('monitorStartBtn');
+
+  canvas.style.display = 'none';
+  placeholder.style.display = 'flex';
+  indicator.style.display = 'none';
+  stats.style.display = 'none';
+  startBtn.textContent = '▶ 开始监控';
+  startBtn.className = 'monitor-btn start';
+  showToast('⏹ 监控已停止');
+}
+
+function onMotionAlert(canvas, diff) {
+  // 抓拍保存
+  try {
+    const dataUrl = canvas.toDataURL('image/jpeg', 70).split(',')[1];
+    const ts = new Date().toLocaleString('zh-CN');
+    const alert = { ts, diff: Math.round(diff), frame: dataUrl, saved: false };
+    _alerts.unshift(alert);
+    _saveAlerts();
+    renderAlerts();
+    showToast('⚠️ 检测到异常活动！已记录');
+  } catch(e) { showToast('⚠️ 告警记录失败'); }
+}
+
+function takeSnapshot() {
+  if (!_monitoring) { showToast('请先开始监控'); return; }
+  const canvas = document.getElementById('monitorCanvas');
+  try {
+    const dataUrl = canvas.toDataURL('image/jpeg', 85).split(',')[1];
+    const ts = new Date().toLocaleString('zh-CN');
+    _alerts.unshift({ ts, diff: 0, frame: dataUrl, saved: false });
+    _saveAlerts();
+    renderAlerts();
+    showToast('📸 抓拍已保存');
+  } catch(e) { showToast('抓拍失败'); }
+}
+
+// ── 告警记录渲染 ──
+function renderAlerts() {
+  const list = document.getElementById('alertList');
+  const count = document.getElementById('alertCount');
+  if (!_alerts || _alerts.length === 0) {
+    count.textContent = '';
+    list.innerHTML = '<div style="font-size:13px;color:#aaa;text-align:center;padding:16px">暂无告警记录</div>';
+    return;
+  }
+  count.textContent = `共 ${_alerts.length} 条`;
+  list.innerHTML = _alerts.map((a, i) => `
+    <div class="alert-item">
+      <div class="alert-icon">${a.diff > 12 ? '⚠️' : '📷'}</div>
+      <div class="alert-body">
+        <div class="alert-time">${escHtml(a.ts)}</div>
+        <div class="alert-text">${a.diff > 12 ? `运动检测异常（阈值${a.diff}）` : '手动抓拍'}</div>
+      </div>
+      ${a.frame ? `<img class="alert-img" src="data:image/jpeg;base64,${escHtml(a.frame)}" onclick="showAlertImg(this.src)">` : ''}
+    </div>
+  `).join('');
+}
+
+function showAlertImg(src) {
+  const overlay = document.createElement('div');
+  overlay.style = 'position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:999;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.onclick = () => overlay.remove();
+  const img = document.createElement('img');
+  img.src = src; img.style = 'max-width:100%;max-height:90vh;border-radius:12px';
+  overlay.appendChild(img);
+  document.body.appendChild(overlay);
+}
+
+// ── 初始化 ──
 _load();
 render();
+renderAlerts();
 </script>
 </body>
 </html>
