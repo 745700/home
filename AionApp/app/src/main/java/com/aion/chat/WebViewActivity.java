@@ -289,6 +289,10 @@ public class WebViewActivity extends AppCompatActivity {
             }
         }, "AionFocusLock");
 
+        // 活动日志桥接（本地 SQLite + UsageStatsManager，离线可用）
+        webView.addJavascriptInterface(new AionActivityLog(webView), "AionActivity");
+
+
         // 通用文件保存桥（用于设置备份 JSON 等文本文件 → Downloads 目录）
         webView.addJavascriptInterface(new Object() {
             @JavascriptInterface
