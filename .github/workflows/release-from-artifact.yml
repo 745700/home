@@ -1,0 +1,53 @@
+name: Upload APK to Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Run ID with artifact (e.g. 27504585799 for run #376)'
+        required: true
+        type: string
+      tag_name:
+        description: 'Release tag (e.g. v376-offline)'
+        required: true
+        type: string
+        default: 'v376-offline'
+      release_name:
+        description: 'Release name'
+        required: false
+        default: 'Offline APK'
+      body:
+        description: 'Release body'
+        required: false
+        default: '离线版 APK'
+
+permissions:
+  contents: write
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ inputs.run_id }}
+          repository: 745700/AionsHome
+          pattern: "*.apk"
+          merge-multiple: false
+
+      - name: Show downloaded files
+        run: |
+          echo "=== artifacts ==="
+          find . -name "*.apk" -type f
+          ls -lh
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag_name }}
+          name: ${{ inputs.release_name }}
+          body: ${{ inputs.body }}
+          draft: false
+          prerelease: false
+          files: ${{ github.workspace }}/**/*.apk
