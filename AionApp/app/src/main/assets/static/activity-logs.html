@@ -282,6 +282,23 @@
 
 <script src="common.js"></script>
 <script>
+/* ── 辅助函数 ── */
+function pad0(n) { return n < 10 ? '0' + n : '' + n; }
+function formatTime(ts) {
+  if (!ts) return '--:--:--';
+  const d = new Date(typeof ts === 'number' && ts > 1e12 ? ts : ts * 1000);
+  if (isNaN(d.getTime())) return '--:--:--';
+  return `${d.getFullYear()}-${pad0(d.getMonth()+1)}-${pad0(d.getDate())} ${pad0(d.getHours())}:${pad0(d.getMinutes())}:${pad0(d.getSeconds())}`;
+}
+function formatDuration(seconds) {
+  if (!seconds || seconds <= 0) return '未知';
+  if (seconds < 60) return `${seconds}秒`;
+  if (seconds < 3600) return `${Math.floor(seconds/60)}分${seconds%60}秒`;
+  const h = Math.floor(seconds/3600);
+  const m = Math.floor((seconds%3600)/60);
+  return m > 0 ? `${h}小时${m}分` : `${h}小时`;
+}
+
 let allEntries = [];
 let deviceFilter = 'all';
 let currentActivityTab = 'logs';
@@ -397,6 +414,7 @@ document.addEventListener('pointerdown', event => {
   hideTimelinePopover();
 });
 
+/* ── 时间线视图（需要服务器，后台运行模式） ── */
 async function loadTimeline() {
   const hours = $('timelineHours').value;
   const el = $('timelineList');
@@ -407,7 +425,25 @@ async function loadTimeline() {
     renderTimeline(data.items || []);
     el.scrollTop = el.scrollHeight;
   } catch(e) {
-    el.innerHTML = '<div class="timeline-empty">加载失败</div>';
+    // 离线模式：尝试用本地桥接
+    if (window.AionActivity) {
+      try {
+        const raw = JSON.parse(window.AionActivity.getRecent(parseInt(hours)));
+        const items = raw.map(entry => ({
+          timestamp: entry.lastUsed || 0,
+          time: formatTime(entry.lastUsed || 0),
+          kind: 'activity',
+          actor: 'user',
+          title: entry.app,
+          detail: entry.duration > 0 ? `使用 ${formatDuration(entry.duration)}` : '切换到前台'
+        }));
+        timelineLoaded = true;
+        renderTimeline(items);
+        el.scrollTop = el.scrollHeight;
+        return;
+      } catch(e2) {}
+    }
+    el.innerHTML = '<div class="timeline-empty">⚠️ 暂无活动日志<br><small>请在设置中开启活动追踪权限</small></div>';
   }
 }
 
@@ -448,44 +484,81 @@ function setDeviceFilter(f) {
   renderEntries();
 }
 
-/* ── 加载最近 N 小时 ── */
+/* ── 加载最近（离线可用） ── */
 async function loadRecent() {
   try {
-    const data = await api('GET', '/api/activity/recent');
-    allEntries = data.entries || [];
+    let entries;
+    if (window.AionActivity) {
+      const raw = JSON.parse(window.AionActivity.getRecent(24));
+      entries = raw.map(entry => ({
+        device: 'phone',
+        app: entry.app,
+        pkg: entry.pkg || '',
+        time: formatTime(entry.lastUsed || 0),
+        title: '',
+        duration: entry.duration || 0,
+        timestamp: entry.lastUsed || 0
+      }));
+    } else {
+      const data = await api('GET', '/api/activity/recent');
+      entries = data.entries || [];
+    }
+    allEntries = entries;
     renderEntries();
-    const el = $('logList'); el.scrollTop = el.scrollHeight;
+    const el = $('logList'); if (el) el.scrollTop = el.scrollHeight;
   } catch(e) {
-    $('logList').innerHTML = '<div class="log-empty">加载失败</div>';
+    const el = $('logList');
+    if (el) el.innerHTML = '<div class="log-empty">⚠️ 加载失败，请检查权限设置</div>';
   }
 }
 
-/* ── 加载日期列表 ── */
+/* ── 加载日期列表（离线可用） ── */
 async function loadDates() {
   try {
-    const data = await api('GET', '/api/activity/dates');
+    let dates;
+    if (window.AionActivity) {
+      dates = JSON.parse(window.AionActivity.getDates());
+    } else {
+      const data = await api('GET', '/api/activity/dates');
+      dates = data.dates || [];
+    }
     const sel = $('dateSelect');
-    if (!data.dates || data.dates.length === 0) {
+    if (!dates || dates.length === 0) {
       sel.innerHTML = '<option>暂无日志</option>';
       $('logList').innerHTML = '<div class="log-empty">暂无活动记录</div>';
       return;
     }
-    sel.innerHTML = data.dates.map(d => `<option value="${d}">${d}</option>`).join('');
+    sel.innerHTML = dates.map(d => `<option value="${d}">${d}</option>`).join('');
     await loadByDate();
   } catch(e) {
     $('logList').innerHTML = '<div class="log-empty">加载失败</div>';
   }
 }
 
-/* ── 加载指定日期 ── */
+/* ── 加载指定日期（离线可用） ── */
 async function loadByDate() {
   const date = $('dateSelect').value;
   if (!date || date === '暂无日志') return;
   try {
-    const data = await api('GET', `/api/activity/logs/${date}`);
-    allEntries = data.entries || [];
+    let entries;
+    if (window.AionActivity) {
+      const raw = JSON.parse(window.AionActivity.getByDate(date));
+      entries = raw.map(entry => ({
+        device: 'phone',
+        app: entry.app,
+        pkg: entry.pkg || '',
+        time: formatTime(entry.timestamp || 0),
+        title: '',
+        duration: entry.duration || 0,
+        timestamp: entry.timestamp || 0
+      }));
+    } else {
+      const data = await api('GET', `/api/activity/logs/${date}`);
+      entries = data.entries || [];
+    }
+    allEntries = entries;
     renderEntries();
-    const el = $('logList'); el.scrollTop = el.scrollHeight;
+    const el = $('logList'); if (el) el.scrollTop = el.scrollHeight;
   } catch(e) {
     $('logList').innerHTML = '<div class="log-empty">加载失败</div>';
   }
@@ -548,107 +621,134 @@ function refresh() {
 async function clearAllLogs() {
   if (!confirm('确定要清除所有活动日志吗？')) return;
   try {
-    const res = await api('POST', '/api/activity/clear');
-    if (res.ok) {
+    if (window.AionActivity) {
+      window.AionActivity.clear();
       allEntries = [];
       renderEntries();
-      showToast('已清除 ' + (res.deleted || 0) + ' 个日志文件');
+      showToast('已清除本地活动日志');
     } else {
-      showToast('清除失败');
+      const res = await api('POST', '/api/activity/clear');
+      if (res.ok) {
+        allEntries = [];
+        renderEntries();
+        showToast('已清除 ' + (res.deleted || 0) + ' 个日志文件');
+      } else {
+        showToast('清除失败');
+      }
     }
   } catch(e) {
     showToast('清除失败');
   }
 }
 
-/* ── 摘要弹窗 ── */
+/* ── 摘要弹窗（离线可用） ── */
 async function openSummary() {
   $('summaryOverlay').classList.add('show');
   $('summaryBody').innerHTML = '<div class="summary-empty">加载中...</div>';
   $('summaryStats').textContent = '';
   try {
-    const data = await api('GET', '/api/activity/summary');
-    const items = data.summaries || [];
+    let items = [];
+    if (window.AionActivity) {
+      const summary = JSON.parse(window.AionActivity.getSummary(24));
+      // 转换为渲染格式
+      const recent = JSON.parse(window.AionActivity.getRecent(24));
+      items = recent.map(entry => ({
+        start: formatTime(entry.lastUsed || 0),
+        end: formatTime(entry.lastUsed || 0),
+        count: entry.count || 1,
+        summary: `${entry.app} 使用 ${formatDuration(entry.duration)}`
+      }));
+    } else {
+      const data = await api('GET', '/api/activity/summary');
+      items = data.summaries || [];
+    }
     if (items.length === 0) {
       $('summaryBody').innerHTML = '<div class="summary-empty">暂无活动摘要</div>';
       return;
     }
-    const totalRaw = items.reduce((s, i) => s + i.count, 0);
+    const totalRaw = items.reduce((s, i) => s + (i.count || 0), 0);
     const activeItems = items.filter(i => i.count > 0);
     $('summaryBody').innerHTML = items.map(i => {
-      const isIdle = i.count === 0;
-      const countHtml = isIdle ? '' : `<span class="summary-count">${i.count}条→1条</span>`;
+      const isIdle = (i.count || 0) === 0;
+      const countHtml = isIdle ? '' : `<span class="summary-count">${i.count}条</span>`;
       const textCls = isIdle ? 'summary-text summary-idle' : 'summary-text';
       return `<div class="summary-item">
-        <span class="summary-time">${escHtml(i.start)}~${escHtml(i.end)}</span>
+        <span class="summary-time">${escHtml(i.start || '')}~${escHtml(i.end || '')}</span>
         ${countHtml}
-        <div class="${textCls}">${escHtml(i.summary)}</div>
+        <div class="${textCls}">${escHtml(i.summary || i.app || '')}</div>
       </div>`;
     }).join('');
-    $('summaryStats').textContent = `${totalRaw} 条原始记录 → ${activeItems.length} 条活动摘要 + ${items.length - activeItems.length} 段空闲`;
-    const sb = $('summaryBody'); sb.scrollTop = sb.scrollHeight;
+    $('summaryStats').textContent = `${totalRaw} 条记录，${activeItems.length} 个应用被使用`;
+    const sb = $('summaryBody'); if (sb) sb.scrollTop = sb.scrollHeight;
   } catch(e) {
-    $('summaryBody').innerHTML = '<div class="summary-empty">加载失败</div>';
+    $('summaryBody').innerHTML = '<div class="summary-empty">加载失败：' + escHtml(e.message) + '</div>';
   }
 }
 function closeSummary() {
   $('summaryOverlay').classList.remove('show');
 }
 
-/* ── AI联动总开关 ── */
+/* ── 权限提示（离线模式） ── */
 async function loadActivityConfig() {
-  try {
-    const data = await api('GET', '/api/activity/config');
-    $('activityTrackingToggle').checked = data.activity_tracking_enabled;
-  } catch(e) {}
+  // 离线模式：检查本地桥接权限状态
+  if (window.AionActivity) {
+    const hasPerm = window.AionActivity.hasPermission();
+    const toggle = $('activityTrackingToggle');
+    if (toggle) toggle.checked = hasPerm;
+  }
 }
 async function loadIdleConfig() {
+  // 优先用 API，失败则用 localStorage
   try {
     idleConfig = await api('GET', '/api/idle-autonomy/config');
-    const minInput = $('idleIntervalMinMinutes');
-    const maxInput = $('idleIntervalMaxMinutes');
-    if (minInput && idleConfig) minInput.value = idleConfig.interval_min_minutes || idleConfig.interval_minutes || 120;
-    if (maxInput && idleConfig) maxInput.value = idleConfig.interval_max_minutes || idleConfig.interval_minutes || 120;
-    const enabled = $('idleEnabledToggle');
-    if (enabled && idleConfig) enabled.checked = !!idleConfig.enabled;
-  } catch(e) {}
+  } catch(e) {
+    try { idleConfig = JSON.parse(localStorage.getItem('aion_idle_config') || '{}'); } catch(e2) { idleConfig = {}; }
+  }
+  const minInput = $('idleIntervalMinMinutes');
+  const maxInput = $('idleIntervalMaxMinutes');
+  if (minInput && idleConfig) minInput.value = idleConfig.interval_min_minutes || idleConfig.interval_minutes || 120;
+  if (maxInput && idleConfig) maxInput.value = idleConfig.interval_max_minutes || idleConfig.interval_minutes || 120;
+  const enabled = $('idleEnabledToggle');
+  if (enabled && idleConfig) enabled.checked = !!idleConfig.enabled;
 }
 async function saveIdleConfig() {
   let minMinutes = Math.max(5, parseInt($('idleIntervalMinMinutes')?.value || '120', 10) || 120);
   let maxMinutes = Math.max(5, parseInt($('idleIntervalMaxMinutes')?.value || String(minMinutes), 10) || minMinutes);
   if (maxMinutes < minMinutes) [minMinutes, maxMinutes] = [maxMinutes, minMinutes];
+  const payload = {
+    enabled: !!$('idleEnabledToggle')?.checked,
+    interval_min_minutes: minMinutes,
+    interval_max_minutes: maxMinutes
+  };
   try {
-    idleConfig = await api('PUT', '/api/idle-autonomy/config', {
-      enabled: !!$('idleEnabledToggle')?.checked,
-      interval_min_minutes: minMinutes,
-      interval_max_minutes: maxMinutes
-    });
-    $('idleIntervalMinMinutes').value = idleConfig.interval_min_minutes || minMinutes;
-    $('idleIntervalMaxMinutes').value = idleConfig.interval_max_minutes || maxMinutes;
+    idleConfig = await api('PUT', '/api/idle-autonomy/config', payload);
     showToast('AI空闲间隔已保存');
   } catch(e) {
-    showToast('保存失败');
+    // 离线模式：存 localStorage
+    localStorage.setItem('aion_idle_config', JSON.stringify(payload));
+    idleConfig = payload;
+    showToast('已保存到本地（离线模式）');
   }
+  $('idleIntervalMinMinutes').value = idleConfig.interval_min_minutes || minMinutes;
+  $('idleIntervalMaxMinutes').value = idleConfig.interval_max_minutes || maxMinutes;
 }
 async function saveIdleEnabled(enabled) {
   const toggle = $('idleEnabledToggle');
   try {
-    idleConfig = await api('PUT', '/api/idle-autonomy/config', {
-      enabled: !!enabled
-    });
+    idleConfig = await api('PUT', '/api/idle-autonomy/config', { enabled: !!enabled });
     if (toggle) toggle.checked = !!idleConfig.enabled;
-    showToast(enabled ? '闲时自主行动已开启' : '闲时自主行动已关闭');
   } catch(e) {
-    showToast('保存失败');
-    if (toggle) toggle.checked = !enabled;
+    // 离线模式
+    if (idleConfig) idleConfig.enabled = !!enabled;
+    else idleConfig = { enabled: !!enabled };
+    localStorage.setItem('aion_idle_config', JSON.stringify(idleConfig));
+    if (toggle) toggle.checked = !!enabled;
   }
+  showToast(enabled ? '闲时自主行动已开启' : '闲时自主行动已关闭');
 }
 async function runIdleTest() {
   const btn = $('idleTestBtn');
-  if (btn) {
-    btn.classList.add('running');
-    btn.textContent = '触发中...';
-  }
+  if (btn) { btn.classList.add('running'); btn.textContent = '触发中...'; }
   try {
     const res = await api('POST', '/api/idle-autonomy/run-once');
     if (res.ok) {
@@ -656,19 +756,26 @@ async function runIdleTest() {
       timelineLoaded = false;
       if (currentActivityTab === 'timeline') loadTimeline();
     } else {
-      showToast(res.error || res.skipped || '触发失败');
+      showToast(res.error || res.skipped || '触发失败（需连接AI后端）');
     }
   } catch(e) {
-    showToast('触发失败');
+    showToast('触发失败（需连接AI后端）');
   } finally {
-    if (btn) {
-      btn.classList.remove('running');
-      btn.textContent = '测试触发';
-    }
+    if (btn) { btn.classList.remove('running'); btn.textContent = '测试触发'; }
   }
 }
 async function toggleActivityTracking(enabled) {
   try {
+    if (window.AionActivity) {
+      // 离线模式：引导用户去设置权限
+      if (enabled) {
+        window.AionActivity.requestPermission();
+        showToast('请在设置中开启"使用情况访问权限"');
+      } else {
+        showToast('权限已关闭（可在系统设置中管理）');
+      }
+      return;
+    }
     await api('PUT', '/api/activity/config', { activity_tracking_enabled: enabled });
     showToast(enabled ? 'AI联动已开启' : 'AI联动已关闭');
   } catch(e) {
