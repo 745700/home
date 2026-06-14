@@ -44,27 +44,30 @@ const MSG_PAGE_SIZE = 50;
 const $ = id => document.getElementById(id);
 
 // ── 收发消息音效 ──
-const sndSend = new Audio('/public/发送消息.mp3');
-const sndRecv = new Audio('/public/收到消息.mp3');
-sndSend.preload = 'auto';
-sndRecv.preload = 'auto';
+let sndSend = null, sndRecv = null;
+try {
+  sndSend = new Audio('/public/发送消息.mp3');
+  sndRecv = new Audio('/public/收到消息.mp3');
+  if (sndSend) { sndSend.preload = 'auto'; sndSend.volume = 1; }
+  if (sndRecv) { sndRecv.preload = 'auto'; sndRecv.volume = 1; }
+} catch(e) { console.warn('[Audio] 音效初始化失败', e); }
 // 在首次用户交互时解锁音频（部分浏览器/WebView 要求）
 let _audioUnlocked = false;
 function _unlockAudio() {
   if (_audioUnlocked) return;
   _audioUnlocked = true;
-  sndSend.load();
-  sndRecv.load();
+  if (!sndSend || !sndRecv) return;
+  try { sndSend.load(); sndRecv.load(); } catch(e) {}
   // 播放静音片段解锁
-  sndSend.volume = 0; sndSend.play().then(() => { sndSend.pause(); sndSend.currentTime = 0; sndSend.volume = 1; }).catch(() => { sndSend.volume = 1; });
-  sndRecv.volume = 0; sndRecv.play().then(() => { sndRecv.pause(); sndRecv.currentTime = 0; sndRecv.volume = 1; }).catch(() => { sndRecv.volume = 1; });
+  if (sndSend) { sndSend.volume = 0; sndSend.play().then(() => { sndSend.pause(); sndSend.currentTime = 0; sndSend.volume = 1; }).catch(() => { sndSend.volume = 1; }); }
+  if (sndRecv) { sndRecv.volume = 0; sndRecv.play().then(() => { sndRecv.pause(); sndRecv.currentTime = 0; sndRecv.volume = 1; }).catch(() => { sndRecv.volume = 1; }); }
   document.removeEventListener('click', _unlockAudio);
   document.removeEventListener('touchstart', _unlockAudio);
 }
 document.addEventListener('click', _unlockAudio);
 document.addEventListener('touchstart', _unlockAudio);
-function playSend() { sndSend.currentTime = 0; sndSend.play().catch(() => {}); }
-function playRecv() { sndRecv.currentTime = 0; sndRecv.play().catch(() => {}); }
+function playSend() { try { if (sndSend) { sndSend.currentTime = 0; sndSend.play().catch(() => {}); } } catch(e) {} }
+function playRecv() { try { if (sndRecv) { sndRecv.currentTime = 0; sndRecv.play().catch(() => {}); } } catch(e) {} }
 
 function applyAionTheme(theme) {
   const next = theme === 'light' ? 'light' : 'dark';
@@ -84,6 +87,71 @@ applyAionTheme(localStorage.getItem('aion_chat_theme') || 'dark');
 window.addEventListener('storage', e => {
   if (e.key === 'aion_chat_theme') applyAionTheme(e.newValue || 'dark');
 });
+
+// ── 专注锁状态 ──
+let _focusLocked = false;
+let _focusUserSent = false;
+
+// 处理 AI 消息中的 [LOCK:N] / [UNLOCK] 指令
+function _processLockCommand(content) {
+  if (!content || typeof content !== 'string') return;
+  const raw = content;
+  // [UNLOCK] — AI 提前解锁
+  if (/\[UNLOCK\]/i.test(raw)) { _doUnlock(); return; }
+  // [LOCK:N] — AI 开始锁机，N 为分钟数（最大60）
+  const m = raw.match(/\[LOCK:\s*(\d+)\]/i);
+  if (m) {
+    const mins = Math.min(Math.max(parseInt(m[1]) || 15, 1), 60);
+    _doLock(mins);
+    // AI 的锁机消息需要显示在原生锁屏上（去掉 LOCK 标签）
+    const cleanText = raw.replace(/\[LOCK:\s*\d+\]/gi, '').replace(/\[UNLOCK\]/gi, '').trim();
+    if (cleanText && typeof window.AionFocusLock !== 'undefined') {
+      window.AionFocusLock.setAIMessage(cleanText);
+    }
+  }
+}
+
+function _doLock(minutes) {
+  if (typeof window.AionFocusLock !== 'undefined') {
+    _focusLocked = true;
+    _focusUserSent = false;
+    window.AionFocusLock.lock(minutes);
+    window.AionFocusLock.setOnUnlocked("window._onFocusUnlocked()");
+    if (window.onFocusLockActive) window.onFocusLockActive();
+  } else {
+    console.warn('[FocusLock] AionFocusLock bridge not ready');
+  }
+}
+
+function _doUnlock() {
+  _focusLocked = false;
+  _focusUserSent = false;
+  if (typeof window.AionFocusLock !== 'undefined') window.AionFocusLock.unlock();
+  if (window.onFocusLockInactive) window.onFocusLockInactive();
+}
+
+window._onFocusUnlocked = function() {
+  _focusLocked = false;
+  _focusUserSent = false;
+  if (window.onFocusLockInactive) window.onFocusLockInactive();
+};
+
+// 锁机期间用户发送消息时调用
+function _onUserMessageDuringLock(msg) {
+  if (!_focusLocked || _focusUserSent) return;
+  _focusUserSent = true; // 锁住，不再允许发送
+  if (typeof window.AionFocusLock !== 'undefined') window.AionFocusLock.onUserMessage(msg);
+}
+
+// 判断用户是否可以发送消息（锁机时只能发1条）
+function _canUserSend() { return !_focusLocked || !_focusUserSent; }
+
+function _markUserSent() { _focusUserSent = true; }
+
+// focus.html 点击"开始专注"时调用
+window.requestAIFocus = function() {
+  window.location.href = '/chat';
+};
 
 // ── 初始化 ──
 async function init() {
@@ -1957,6 +2025,16 @@ async function send() {
   const input = $("input");
   const text = input.value.trim();
   if ((!text && !pendingAttachments.length) || !currentConvId || sending) return;
+  // 专注锁状态检查：只能发1条消息
+  if (!_canUserSend()) {
+    showToast('专注中，暂时无法发送消息');
+    input.value = text; // 恢复输入
+    return;
+  }
+  // 如果是锁机期间的第1条消息，通知 FocusLock
+  if (_focusLocked && !_focusUserSent) {
+    _onUserMessageDuringLock(text);
+  }
 
   sending = true;
   _showStopBtn();
@@ -2080,7 +2158,7 @@ async function _processSSEStream(res) {
         if (chunk) {
           _stopTypingAnim();
           aiContent += chunk;
-          const display = aiContent.replace(/\[CAM_CHECK\]/g, '').replace(/\[POI_SEARCH:[^\]]*\]/g, '').replace(/\[MUSIC:[^\]]*\]/g, '').replace(/\[ALARM:[^\]]*\]/g, '').replace(/\[REMINDER:[^\]]*\]/g, '').replace(/\[Monitor:[^\]]*\]/g, '').replace(/\[TOY:[^\]]*\]/g, '').replace(/\[HEART:[^\]]*\]/g, '').replace(/\[MEMORY:[^\]]*\]/g, '').replace(/\[查看动态:\d+\]/g, '').replace(/\[视频电话\]/g, '').replace(/\[SELFIE:\s*[^\]]*\]/g, '').replace(/\[DRAW:\s*[^\]]*\]/g, '').replace(/<meta>[\s\S]*?<\/meta>/g, '').trim();
+          const display = aiContent.replace(/\[CAM_CHECK\]/g, '').replace(/\[POI_SEARCH:[^\]]*\]/g, '').replace(/\[MUSIC:[^\]]*\]/g, '').replace(/\[ALARM:[^\]]*\]/g, '').replace(/\[REMINDER:[^\]]*\]/g, '').replace(/\[Monitor:[^\]]*\]/g, '').replace(/\[TOY:[^\]]*\]/g, '').replace(/\[HEART:[^\]]*\]/g, '').replace(/\[MEMORY:[^\]]*\]/g, '').replace(/\[查看动态:\d+\]/g, '').replace(/\[视频电话\]/g, '').replace(/\[SELFIE:\s*[^\]]*\]/g, '').replace(/\[DRAW:\s*[^\]]*\]/g, '').replace(/\[LOCK:\s*\d+\]/gi, '').replace(/\[UNLOCK\]/gi, '').replace(/<meta>[\s\S]*?<\/meta>/g, '').trim();
           const mi = currentMessages.findIndex(m => m.id === aiMsgId);
           if (mi >= 0) currentMessages[mi].content = display;
           const container = document.getElementById(`m_${aiMsgId}`);
@@ -2127,6 +2205,18 @@ async function _processSSEStream(res) {
     } catch(e) {
       console.warn('[TTS] 语音合成异常:', e);
     }
+  }
+
+  // ── [LOCK:N] / [UNLOCK] 专注锁指令 ──
+  _processLockCommand(aiContent);
+
+  // 锁机期间：所有 AI 回复都显示在原生锁屏上
+  if (_focusLocked && typeof window.AionFocusLock !== 'undefined') {
+    const clean = aiContent
+      .replace(/\[LOCK:\s*\d+\]/gi, '')
+      .replace(/\[UNLOCK\]/gi, '')
+      .trim();
+    if (clean) window.AionFocusLock.setAIMessage(clean);
   }
 
   // Save messages to localStorage
@@ -4538,4 +4628,5 @@ async function openWalletPanel() {
 function closeWalletPanel() {
   $('walletPanelOverlay').classList.remove('show');
 }
+
 
