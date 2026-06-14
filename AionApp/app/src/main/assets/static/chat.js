@@ -4668,8 +4668,8 @@ function _refreshWishBanner() {
       if (pending > 0) {
         banner.style.display = 'flex';
         $('wishBannerText').textContent = '你有 ' + pending + ' 张小纸条等待被捞起~';
-        $('wishBtnFulfill').style.display = 'none';
-        $('wishBtnReject').style.display = 'none';
+        $('wishBtnFulfill').style.display = 'none'; $('wishRejectHint').style.display = 'none';
+        $('wishRejectHint').style.display = 'none';
       } else {
         banner.style.display = 'none';
       }
