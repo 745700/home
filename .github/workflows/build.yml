@@ -39,24 +39,27 @@ jobs:
         run: |
           cd AionApp
           chmod +x ./gradlew
-          ./gradlew assembleDebug --no-daemon --rerun-tasks 2>&1 | tail -10
-        env:
-          TERM: dumb
+          ./gradlew assembleDebug --no-daemon --rerun-tasks 2>&1
 
-      - name: List APK files
+      - name: Find and upload APK
         run: |
-          echo "=== find result ==="
-          find . -name "*.apk" -type f 2>/dev/null
-          echo "=== ls result ==="
-          ls -lh AionApp/app/build/outputs/apk/debug/ 2>/dev/null || echo "dir not found"
-          echo "=== android build output ==="
-          ls -lh AionApp/app/build/outputs/ 2>/dev/null || echo "outputs dir not found"
+          echo "=== Searching for APK ==="
+          APK_PATH=$(find . -name "*.apk" -type f 2>/dev/null | head -1)
+          if [ -z "$APK_PATH" ]; then
+            echo "ERROR: No APK found!"
+            ls -la AionApp/app/build/outputs/apk/debug/ 2>/dev/null || echo "debug dir not found"
+            ls -la AionApp/app/build/outputs/ 2>/dev/null || echo "outputs dir not found"
+            exit 1
+          fi
+          echo "Found APK: $APK_PATH"
+          echo "apk_path=$APK_PATH" >> $GITHUB_ENV
+          ls -lh "$APK_PATH"
 
       - name: Upload APK as artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
-          path: AionApp/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ env.apk_path }}
           retention-days: 5
 
       - name: Create Release
