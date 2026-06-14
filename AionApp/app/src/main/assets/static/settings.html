@@ -98,20 +98,26 @@ connectCommonWS();
 })();
 
 async function saveSettings() {
-  
-    await api("PUT", "/api/settings", {
-    gemini_key: $("geminiKeyInput").value.trim(),
-    gemini_free_key: $("geminiFreeKeyInput").value.trim(),
-    sentinel_base_url: $("sentinelBaseUrlInput").value.trim(),
-    sentinel_api_key: $("sentinelApiKeyInput").value.trim(),
-    sentinel_model: $("sentinelModelInput").value.trim(),
-    embedding_base_url: $("embeddingBaseUrlInput").value.trim(),
-    embedding_api_key: $("embeddingApiKeyInput").value.trim(),
-    embedding_model: $("embeddingModelInput").value.trim(),
-    siliconflow_key: $("sfKeyInput").value.trim(),
-    aipro_key: $("aiproKeyInput").value.trim(),
-    netease_music_u: $("neteaseMusicUInput").value.trim()
-  });
+  // 合并所有字段，保留 chat.js 直接读的那些字段不被覆盖
+  const existing = JSON.parse(localStorage.getItem('settings') || '{}');
+  const newSettings = {
+    ...existing,
+    gemini_key:          $("geminiKeyInput").value.trim(),
+    gemini_free_key:     $("geminiFreeKeyInput").value.trim(),
+    sentinel_base_url:    $("sentinelBaseUrlInput").value.trim(),
+    sentinel_api_key:     $("sentinelApiKeyInput").value.trim(),
+    sentinel_model:       $("sentinelModelInput").value.trim(),
+    embedding_base_url:   $("embeddingBaseUrlInput").value.trim(),
+    embedding_api_key:   $("embeddingApiKeyInput").value.trim(),
+    embedding_model:     $("embeddingModelInput").value.trim(),
+    siliconflow_key:      $("sfKeyInput").value.trim(),
+    aipro_key:           $("aiproKeyInput").value.trim(),
+    netease_music_u:     $("neteaseMusicUInput").value.trim(),
+  };
+  // 存到 aion_settings（给 api() 用）
+  await api("PUT", "/api/settings", newSettings);
+  // 存到 settings（chat.js 直接读的那些字段：siliconflow_key / sf_key / hume_api_key 等）
+  localStorage.setItem('settings', JSON.stringify(newSettings));
   showToast("✅ 已保存");
 }
 
@@ -223,3 +229,4 @@ function importBackup(file) {
 </script>
 </body>
 </html>
+
