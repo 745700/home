@@ -4630,3 +4630,89 @@ function closeWalletPanel() {
 }
 
 
+
+
+// ═══════════════════════════════════════════
+// 许愿池 — AI 纸条悬浮条
+// ═══════════════════════════════════════════
+let _currentReviewingWish = null;
+
+function _initWishBanner() {
+  _refreshWishBanner();
+  setInterval(_refreshWishBanner, 5000);
+}
+
+function _refreshWishBanner() {
+  try {
+    // 检查是否有正在处理的纸条
+    let reviewingWish = null;
+    if (window.AionWishPool && window.AionWishPool.getReviewingWish) {
+      const raw = window.AionWishPool.getReviewingWish();
+      if (raw) reviewingWish = JSON.parse(raw);
+    }
+    _currentReviewingWish = reviewingWish;
+    const banner = $('wishBanner');
+    if (!banner) return;
+    if (reviewingWish) {
+      banner.style.display = 'flex';
+      const text = reviewingWish.content.length > 30
+        ? reviewingWish.content.substring(0, 30) + '…'
+        : reviewingWish.content;
+      $('wishBannerText').textContent = '🗝 正在看你的纸条：' + text;
+    } else {
+      // 检查有没有待捞取
+      const pending = window.AionWishPool && window.AionWishPool.getPendingCount
+        ? window.AionWishPool.getPendingCount()
+        : 0;
+      if (pending > 0) {
+        banner.style.display = 'flex';
+        $('wishBannerText').textContent = '你有 ' + pending + ' 张小纸条等待被捞起~';
+        $('wishBtnFulfill').style.display = 'none';
+        $('wishBtnReject').style.display = 'none';
+      } else {
+        banner.style.display = 'none';
+      }
+    }
+    // 更新待处理计数
+    const count = window.AionWishPool && window.AionWishPool.getPendingCount
+      ? window.AionWishPool.getPendingCount()
+      : 0;
+    if ($('wishBannerCount')) {
+      $('wishBannerCount').textContent = count > 0 ? count + ' 张待处理' : '';
+    }
+  } catch(e) {}
+}
+
+function wishFulfill() {
+  if (!_currentReviewingWish) return;
+  const id = _currentReviewingWish.id;
+  if (window.AionWishPool && window.AionWishPool.fulfillWish) {
+    window.AionWishPool.fulfillWish(id);
+    addAIMessage('✅ 我已经帮你实现这个愿望啦！');
+    showToast('愿望已标记为已实现~');
+    _currentReviewingWish = null;
+    _refreshWishBanner();
+  }
+}
+
+function wishOpenReject() {
+  if (!_currentReviewingWish) return;
+  const reason = prompt('请输入驳回理由（选填）：');
+  wishDoReject(reason);
+}
+
+function wishDoReject(reason) {
+  if (!_currentReviewingWish) return;
+  const id = _currentReviewingWish.id;
+  if (window.AionWishPool && window.AionWishPool.rejectWish) {
+    window.AionWishPool.rejectWish(id, reason || '');
+    const r = reason ? '\n驳回理由：' + reason : '';
+    addAIMessage('❌ 这张纸条我先收起来了~ 已驳回。' + r);
+    showToast('纸条已驳回');
+    _currentReviewingWish = null;
+    _refreshWishBanner();
+  }
+}
+
+// 初始化
+window.addEventListener('load', _initWishBanner);
