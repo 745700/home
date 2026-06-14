@@ -52,6 +52,13 @@ jobs:
           echo "=== android build output ==="
           ls -lh AionApp/app/build/outputs/ 2>/dev/null || echo "outputs dir not found"
 
+      - name: Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: AionApp/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 5
+
       - name: Create Release
         id: create_release
         if: inputs.release_id == ''
