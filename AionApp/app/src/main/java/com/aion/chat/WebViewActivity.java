@@ -59,7 +59,6 @@ public class WebViewActivity extends AppCompatActivity {
     private int retryCount = 0;
     private static final int MAX_RETRY = 5;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private FocusLockManager focusLockManager = null;
     private ValueCallback<Uri[]> fileCallback;
     private PermissionRequest pendingPermRequest;
 
@@ -118,7 +117,6 @@ public class WebViewActivity extends AppCompatActivity {
         webView = new WebView(this);
         webView.setBackgroundColor(android.graphics.Color.TRANSPARENT);
         setContentView(webView);
-        focusLockManager = new FocusLockManager(this, webView);
 
         // 状态栏图标样式桥接（让网页可以根据主题动态切换深色/浅色图标）
         webView.addJavascriptInterface(new Object() {
@@ -241,217 +239,6 @@ public class WebViewActivity extends AppCompatActivity {
             }
         }, "AionNavigator");
 
-        // ── 专注锁桥接 ──
-        webView.addJavascriptInterface(new Object() {
-            @JavascriptInterface
-            public void lock(int minutes) {
-                mainHandler.post(() -> {
-                    if (focusLockManager != null) focusLockManager.lock(minutes);
-                });
-            }
-            @JavascriptInterface
-            public void unlock() {
-                mainHandler.post(() -> {
-                    if (focusLockManager != null) focusLockManager.unlock();
-                });
-            }
-            @JavascriptInterface
-            public boolean isLocked() {
-                return focusLockManager != null && focusLockManager.isLocked();
-            }
-            @JavascriptInterface
-            public boolean canUserSend() {
-                return focusLockManager != null && focusLockManager.canUserSendMessage();
-            }
-            @JavascriptInterface
-            public void setAIMessage(String text) {
-                mainHandler.post(() -> {
-                    if (focusLockManager != null) focusLockManager.setAiReplyText(text);
-                });
-            }
-            @JavascriptInterface
-            public void onUserMessage(String msg) {
-                mainHandler.post(() -> {
-                    if (focusLockManager != null) focusLockManager.onUserMessageSent(msg);
-                });
-            }
-            @JavascriptInterface
-            public void setOnLocked(String jsCode) {
-                if (focusLockManager != null) focusLockManager.setOnLockedCallback(jsCode);
-            }
-            @JavascriptInterface
-            public void setOnUnlocked(String jsCode) {
-                if (focusLockManager != null) focusLockManager.setOnUnlockedCallback(jsCode);
-            }
-            @JavascriptInterface
-            public void setOnUserMessage(String jsCode) {
-                if (focusLockManager != null) focusLockManager.setOnUserMessageCallback(jsCode);
-            }
-        }, "AionFocusLock");
-
-        // 活动日志桥接（本地 SQLite + UsageStatsManager，离线可用）
-        webView.addJavascriptInterface(new AionActivityLog(webView), "AionActivity");
-
-        // 系统设置跳转 + 运行时权限请求桥
-        webView.addJavascriptInterface(new Object() {
-            @JavascriptInterface
-            public void openUsageAccessSettings() {
-                mainHandler.post(() -> {
-                    try {
-                        Intent intent = new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS);
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(intent);
-                    } catch (Exception e) {
-                        Toast.makeText(WebViewActivity.this, "请手动去设置→应用→权限→使用情况访问", Toast.LENGTH_LONG).show();
-                    }
-                });
-            }
-
-            @JavascriptInterface
-            public void openOverlaySettings() {
-                mainHandler.post(() -> {
-                    try {
-                        Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
-                        intent.setData(Uri.parse("package:" + getPackageName()));
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(intent);
-                    } catch (Exception e) {
-                        Toast.makeText(WebViewActivity.this, "请手动去设置→应用→权限→悬浮窗", Toast.LENGTH_LONG).show();
-                    }
-                });
-            }
-
-            @JavascriptInterface
-            public void openAppSettings() {
-                mainHandler.post(() -> {
-                    try {
-                        Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                        intent.setData(Uri.parse("package:" + getPackageName()));
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(intent);
-                    } catch (Exception e) {
-                        Toast.makeText(WebViewActivity.this, "请手动去设置→应用→AI Companion", Toast.LENGTH_LONG).show();
-                    }
-                });
-            }
-
-            @JavascriptInterface
-            public void openBatteryOptimizationSettings() {
-                mainHandler.post(() -> {
-                    try {
-                        Intent intent = new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(intent);
-                    } catch (Exception e) {
-                        openAppSettings();
-                    }
-                });
-            }
-
-            @JavascriptInterface
-            public boolean checkPermission(String perm) {
-                if (perm == null || perm.isEmpty()) return false;
-                try {
-                    int result = checkCallingOrSelfPermission(perm);
-                    return result == PackageManager.PERMISSION_GRANTED;
-                } catch (Exception e) { return false; }
-            }
-
-            @JavascriptInterface
-            public void requestPermission(String perm) {
-                if (perm == null || perm.isEmpty()) return;
-                mainHandler.post(() -> {
-                    if (checkPermission(perm)) {
-                        webView.evaluateJavascript(
-                            "if(window._onPermissionResult)window._onPermissionResult('"+perm+"',true);",
-                            null);
-                        return;
-                    }
-                    try {
-                        ActivityCompat.requestPermissions(WebViewActivity.this,
-                            new String[]{perm}, 1001);
-                    } catch (Exception e) {
-                        // 部分权限不支持运行时请求，跳转设置
-                        openAppSettings();
-                    }
-                });
-            }
-
-            @JavascriptInterface
-            public void openNotificationSettings() {
-                mainHandler.post(() -> {
-                    try {
-                        Intent intent = new Intent();
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            intent.setAction(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
-                            intent.putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
-                        } else {
-                            intent.setAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                            intent.setData(Uri.parse("package:" + getPackageName()));
-                        }
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(intent);
-                    } catch (Exception e) {
-                        openAppSettings();
-                    }
-                });
-            }
-        }, "AionSettings");
-
-        // 许愿池 JS 桥
-        webView.addJavascriptInterface(new Object() {
-            @JavascriptInterface
-            public String pickRandomWish() {
-                return "ok";
-            }
-        }, "AionWishPool");
-
-        // 运行时权限请求结果回调桥（Android 6.0+ 权限回调）
-        webView.addJavascriptInterface(new Object() {
-            @JavascriptInterface
-            public void onPermissionResult(String perm, boolean granted) {
-                // 前端可以通过订阅这个回调获知权限结果
-                mainHandler.post(() -> {
-                    webView.evaluateJavascript(
-                        "if(window._onPermissionResult)window._onPermissionResult('"+perm+"',"+granted+");",
-                        null);
-                });
-            }
-        }, "AionPermCallback");
-
-
-
-        // 通用文件保存桥（用于设置备份 JSON 等文本文件 → Downloads 目录）
-        webView.addJavascriptInterface(new Object() {
-            @JavascriptInterface
-            public void saveText(String content, String filename) {
-                mainHandler.post(() -> {
-                    try {
-                        byte[] bytes = content.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-                        String encoded = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP);
-                        byte[] decoded = android.util.Base64.decode(encoded, android.util.Base64.DEFAULT);
-                        ContentValues values = new ContentValues();
-                        String mime = "application/json";
-                        if (filename.endsWith(".txt")) mime = "text/plain";
-                        else if (filename.endsWith(".html")) mime = "text/html";
-                        values.put(MediaStore.Downloads.DISPLAY_NAME, filename);
-                        values.put(MediaStore.Downloads.MIME_TYPE, mime);
-                        values.put(MediaStore.Downloads.RELATIVE_PATH, "Download/");
-                        Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
-                        if (uri != null) {
-                            java.io.OutputStream os = getContentResolver().openOutputStream(uri);
-                            if (os != null) { os.write(decoded); os.close(); }
-                            Toast.makeText(WebViewActivity.this, "✅ 已保存到 Download/" + filename, Toast.LENGTH_SHORT).show();
-                        } else {
-                            Toast.makeText(WebViewActivity.this, "❌ 保存失败", Toast.LENGTH_SHORT).show();
-                        }
-                    } catch (Exception e) {
-                        mainHandler.post(() -> Toast.makeText(WebViewActivity.this, "❌ 保存失败: " + e.getMessage(), Toast.LENGTH_SHORT).show());
-                    }
-                });
-            }
-        }, "AionFileSave");
-
         // 图片保存桥接（WebView 不支持 blob URL 下载，用原生方法写入相册）
         webView.addJavascriptInterface(new Object() {
             @JavascriptInterface
@@ -545,6 +332,13 @@ public class WebViewActivity extends AppCompatActivity {
                 // ── 路由路径重定向 ──
                 String path = request.getUrl().getPath();
                 if (path != null && !path.isEmpty() && !path.equals("/")) {
+                    // 子页面相对路径加载 common.js → 指向静态资源
+                    if ("/common.js".equals(path) || "/chat.js".equals(path) || "/home.js".equals(path)) {
+                        try {
+                            InputStream is = getAssets().open("static" + path);
+                            return new WebResourceResponse("application/javascript", "UTF-8", is);
+                        } catch (IOException e) {}
+                    }
                     java.util.Map<String, String> routeMap = new java.util.HashMap<>();
                     routeMap.put("/chat", "chat.html");
                     routeMap.put("/settings", "settings.html");
@@ -561,6 +355,7 @@ public class WebViewActivity extends AppCompatActivity {
                     routeMap.put("/reading", "reading.html");
                     routeMap.put("/gift", "gift.html");
                     routeMap.put("/fund", "fund.html");
+                    routeMap.put("/wish-pool", "wish-pool.html");
                     routeMap.put("/playground", "playground.html");
                     routeMap.put("/doudizhu", "doudizhu.html");
                     routeMap.put("/seeky", "seaky.html");
@@ -570,8 +365,6 @@ public class WebViewActivity extends AppCompatActivity {
                     routeMap.put("/fund", "fund.html");
                     routeMap.put("/sentinel", "sentinel.html");
                     routeMap.put("/focus", "focus.html");
-                    routeMap.put("/permissions", "permissions.html");
-                    routeMap.put("/wish-pool", "wish-pool.html");
                     routeMap.put("/camera", "camera.html");
                     routeMap.put("/", "home.html");
                     if (routeMap.containsKey(path)) {
@@ -637,6 +430,9 @@ public class WebViewActivity extends AppCompatActivity {
                 } else if (path.equals("/sw.js")) {
                     // ServiceWorker
                     assetPath = "static/sw.js";
+                } else if ("/common.js".equals(path) || "/chat.js".equals(path) || "/home.js".equals(path)) {
+                    // 子页面相对路径加载 common.js → 指向静态资源
+                    assetPath = "static" + path;
                 } else {
                     // 路由路径映射（iframe 直接访问 /chat、/settings 等，需映射到对应 HTML 文件）
                     java.util.Map<String, String> routeMap = new java.util.HashMap<>();
@@ -655,6 +451,7 @@ public class WebViewActivity extends AppCompatActivity {
                     routeMap.put("/reading", "reading.html");
                     routeMap.put("/gift", "gift.html");
                     routeMap.put("/fund", "fund.html");
+                    routeMap.put("/wish-pool", "wish-pool.html");
                     routeMap.put("/playground", "playground.html");
                     routeMap.put("/doudizhu", "doudizhu.html");
                     routeMap.put("/seeky", "seaky.html");
@@ -1105,14 +902,9 @@ public class WebViewActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         mainHandler.removeCallbacksAndMessages(null);
-        if (focusLockManager != null) {
-            focusLockManager.destroy();
-            focusLockManager = null;
-        }
         if (webView != null) {
             webView.destroy();
         }
         super.onDestroy();
     }
 }
-
