@@ -332,13 +332,6 @@ public class WebViewActivity extends AppCompatActivity {
                 // ── 路由路径重定向 ──
                 String path = request.getUrl().getPath();
                 if (path != null && !path.isEmpty() && !path.equals("/")) {
-                    // 子页面相对路径加载 common.js → 指向静态资源
-                    if ("/common.js".equals(path) || "/chat.js".equals(path) || "/home.js".equals(path)) {
-                        try {
-                            InputStream is = getAssets().open("static" + path);
-                            return new WebResourceResponse("application/javascript", "UTF-8", is);
-                        } catch (IOException e) {}
-                    }
                     java.util.Map<String, String> routeMap = new java.util.HashMap<>();
                     routeMap.put("/chat", "chat.html");
                     routeMap.put("/settings", "settings.html");
