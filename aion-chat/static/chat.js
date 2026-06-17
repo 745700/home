@@ -1821,6 +1821,8 @@ async function selectConv(id) {
   renderMessages();
   $("sendBtn").disabled = false;
   closeSidebar();
+  // 拉取当前对话的体感状态
+  fetchSomaticState();
 }
 
 async function loadOlderMessages() {
@@ -2231,6 +2233,8 @@ async function saveEdit(id) {
             if (typeof videoCall !== 'undefined') videoCall.handleIncomingIndicator(data);
           } else if (data.type === 'image_gen_start') {
             handleImageGenStart(data);
+          } else if (data.type === 'somatic_state') {
+            handleSomaticState(data.data && data.data.snapshot);
           }
         } catch {}
       }
@@ -2345,6 +2349,8 @@ async function regenerateMsg(aiMsgId) {
             if (typeof videoCall !== 'undefined') videoCall.handleIncomingIndicator(d);
           } else if (d.type === "image_gen_start") {
             handleImageGenStart(d);
+          } else if (d.type === 'somatic_state') {
+            handleSomaticState(d.data && d.data.snapshot);
           }
         } catch {}
       }
@@ -2585,6 +2591,83 @@ function _showHeartWhisperCard(msgId) {
     <div class="hw-card-text">${escHtml(content)}</div>
   </div>`;
   document.body.appendChild(overlay);
+}
+
+// ── [五感系统] 体感状态 UI ──
+// 当前活跃体感（全局状态，供渲染函数使用）
+let _somaticSnapshot = {};
+
+// 体感图标和颜色映射
+const SENSE_META = {
+  touch:  { icon: '🤲', color: '#ff9e9e', label: '触' },
+  smell:  { icon: '🌸', color: '#c4f5b4', label: '香' },
+  taste:  { icon: '👅', color: '#ffd580', label: '味' },
+  sound:  { icon: '🔊', color: '#aad5ff', label: '听' },
+};
+
+function handleSomaticState(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') return;
+  _somaticSnapshot = snapshot;
+  _renderSomaticUI();
+  // 触发一次背景衰减更新（30秒后重新渲染）
+  clearTimeout(_somaticDecayTimer);
+  _somaticDecayTimer = setTimeout(() => {
+    fetchSomaticState();
+  }, 30000);
+}
+
+// 前端主动拉取当前体感状态（用于页面加载时恢复）
+async function fetchSomaticState() {
+  if (!currentConvId) return;
+  try {
+    const r = await fetch(`/api/senses/${currentConvId}`);
+    if (r.ok) {
+      const json = await r.json();
+      if (json.snapshot && Object.keys(json.snapshot).length > 0) {
+        handleSomaticState(json.snapshot);
+      }
+    }
+  } catch {}
+}
+
+// 衰减定时器
+let _somaticDecayTimer = null;
+
+// 渲染体感 UI 到页面
+function _renderSomaticUI() {
+  // 找到或创建体感容器（放在聊天输入框上方）
+  let container = document.getElementById('senses-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'senses-container';
+    const inputArea = document.querySelector('.input-area') || document.querySelector('.chat-input');
+    if (inputArea) inputArea.parentNode.insertBefore(container, inputArea);
+    container.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;padding:4px 12px;min-height:0;';
+  }
+
+  const entries = Object.entries(_somaticSnapshot);
+  if (entries.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  container.innerHTML = entries.map(([ch, info]) => {
+    const meta = SENSE_META[ch] || { icon: '✨', color: '#ddd', label: ch };
+    // 进度百分比
+    const pct = Math.round(Math.min(info.value, 1) * 100);
+    return `<div style="
+      display:inline-flex;align-items:center;gap:5px;
+      background:${meta.color}22;border:1px solid ${meta.color}55;
+      border-radius:20px;padding:3px 10px;font-size:12px;
+      color:#aaa;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    ">
+      <span style="font-size:14px">${meta.icon}</span>
+      <span style="opacity:0.7">${info.label || meta.label}</span>
+      <div style="width:30px;height:3px;background:#3333;border-radius:2px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:${meta.color};border-radius:2px;transition:width 0.3s"></div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 // ── [MEMORY] 记忆录入提示 ──

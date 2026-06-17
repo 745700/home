@@ -1069,10 +1069,11 @@ async def edit_resend_message(msg_id: str, body: MsgEditResend):
             ai_msg = {"id": ai_msg_id, "conv_id": conv_id, "role": "assistant", "content": full_text, "created_at": now2, "attachments": reply_atts}
             await manager.broadcast({"type": "msg_created", "data": ai_msg})
 
-            # ── 五感系统：推送体感快照到前端 ──
+            # ── 五感系统：推送体感快照到前端（SSE + WebSocket双通道）──
             if somatic_snapshot:
-                somatic_ws_data = {"type": "somatic_state", "data": {"snapshot": somatic_snapshot}}
-                await manager.broadcast(somatic_ws_data)
+                somatic_data = {"type": "somatic_state", "data": {"snapshot": somatic_snapshot}}
+                await _q.put(somatic_data)
+                await manager.broadcast(somatic_data)
 
             await export_conversation(conv_id)
 
