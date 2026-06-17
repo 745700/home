@@ -45,6 +45,12 @@ from context_builder import (
     fetch_merged_timeline, render_merged_timeline, build_health_summary,
     format_ability_block,
 )
+from senses import (
+    process_message as senses_process_message,
+    build_somatic_block,
+    get_somatic_state,
+    decay_all,
+)
 from music import search_songs, get_audio_url
 from schedule import process_schedule_commands, get_active_schedules, build_schedule_prompt
 from mcp_client import mcp_manager
@@ -1062,6 +1068,12 @@ async def edit_resend_message(msg_id: str, body: MsgEditResend):
 
             ai_msg = {"id": ai_msg_id, "conv_id": conv_id, "role": "assistant", "content": full_text, "created_at": now2, "attachments": reply_atts}
             await manager.broadcast({"type": "msg_created", "data": ai_msg})
+
+            # ── 五感系统：推送体感快照到前端 ──
+            if somatic_snapshot:
+                somatic_ws_data = {"type": "somatic_state", "data": {"snapshot": somatic_snapshot}}
+                await manager.broadcast(somatic_ws_data)
+
             await export_conversation(conv_id)
 
             if toy_matches:
@@ -1150,6 +1162,21 @@ async def edit_resend_message(msg_id: str, body: MsgEditResend):
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 
+# ── 五感状态查询 ────────────────────────────────
+@router.get("/api/senses/{conv_id}")
+async def get_senses(conv_id: str):
+    """
+    获取当前五感状态（供前端轮询或页面加载时调用）。
+    WebSocket 会推送 somatic_state 事件实时更新，此接口用于主动拉取。
+    """
+    import time
+    now = time.time()
+    state = get_somatic_state(conv_id)
+    state.decay(now)
+    snapshot = state.snapshot(now)
+    return {"ok": True, "snapshot": snapshot}
+
+
 # ── 发送消息 + AI 回复（SSE 流式） ────────────────
 @router.post("/api/conversations/{conv_id}/send")
 async def send_message(conv_id: str, body: MsgCreate):
@@ -1176,6 +1203,12 @@ async def send_message(conv_id: str, body: MsgCreate):
 
     # 用户发消息时重置哨兵巡逻计时器
     cam.reset_patrol_timer()
+
+    # ── 五感系统：检测用户消息中的体感并更新状态 ──
+    somatic_result = senses_process_message(body.content, user_id=conv_id, now=now)
+    somatic_block = somatic_result.get("block", "")
+    somatic_snapshot = somatic_result.get("snapshot", {})
+    somatic_proust = somatic_result.get("proust", [])
 
     # 检测用户消息中的 [转账：N元] → 入账
     user_transfer_matches = TRANSFER_CMD_PATTERN.findall(body.content)
@@ -1361,6 +1394,11 @@ async def send_message(conv_id: str, body: MsgCreate):
         history.insert(cap_idx + inject_offset, {"role": "user", "content": bg_block})
         history.insert(cap_idx + inject_offset + 1, {"role": "assistant", "content": "收到。"})
         inject_offset += 2
+        # ── 五感系统（快速模式）──
+        if somatic_block:
+            history.insert(cap_idx + inject_offset, {"role": "user", "content": somatic_block})
+            history.insert(cap_idx + inject_offset + 1, {"role": "assistant", "content": "收到，我会让这些感觉自然影响我的回应。"})
+            inject_offset += 2
     else:
         # ── 正常模式：完整 RAG 流程 ──
         digest_result = await instant_digest(actual_recent)
@@ -1400,6 +1438,21 @@ async def send_message(conv_id: str, body: MsgCreate):
         history.insert(cap_idx + inject_offset + 1, {"role": "assistant", "content": "收到，我会在合适的时候自然提及。"})
         inject_offset += 2
 
+        # ── 五感系统：注入体感快照（在背景记忆之后、精确召回之前）──
+        if somatic_block:
+            history.insert(cap_idx + inject_offset, {"role": "user", "content": somatic_block})
+            history.insert(cap_idx + inject_offset + 1, {"role": "assistant", "content": "收到，我会让这些感觉自然影响我的回应。"})
+            inject_offset += 2
+
+        # ── 五感·普鲁斯特钩子：嗅/味超阈值时召回相关感官记忆 ──
+        proust_recalled = []
+        if somatic_proust:
+            for p_item in somatic_proust:
+                entity = p_item.get("entity", "")
+                if entity:
+                    proust_results, _ = await recall_memories(entity, query_keywords=[entity], top_k=3)
+                    proust_recalled.extend([r for r in proust_results if r["id"] not in surfaced_ids and r not in proust_recalled])
+
         # 4. RAG 精确召回（与背景记忆去重，使用已并行获取的结果）
         if is_search_needed and recall_query:
             recalled = [r for r in debug_top6 if r["score"] >= 0.45 and r["id"] not in surfaced_ids][:5]
@@ -1421,6 +1474,18 @@ async def send_message(conv_id: str, body: MsgCreate):
                 mem_block += f"\n\n[原文细节]\n以下是相关的具体对话记录：\n{detail_text}"
             history.insert(cap_idx + inject_offset, {"role": "user", "content": mem_block})
             history.insert(cap_idx + inject_offset + 1, {"role": "assistant", "content": "收到，我会自然地参考这些记忆。"})
+            inject_offset += 2
+
+        # 5.5 普鲁斯特钩子注入：嗅/味唤起的感官记忆（独立于关键词召回）
+        if proust_recalled:
+            proust_lines = "\n".join([f"- {m['content']}" for m in proust_recalled])
+            channel_labels = {"smell": "嗅觉", "taste": "味觉"}
+            triggered_channels = [channel_labels.get(p.get("channel", ""), "感官") for p in somatic_proust]
+            channel_desc = "和".join(triggered_channels) if triggered_channels else "感官"
+            proust_block = f"[{channel_desc}唤起的记忆]\n某些气味和味道能瞬间唤起深层的记忆，以下是你此刻联想到的相关片段：\n{proust_lines}"
+            history.insert(cap_idx + inject_offset, {"role": "user", "content": proust_block})
+            history.insert(cap_idx + inject_offset + 1, {"role": "assistant", "content": "收到，这些味道和气味唤起了我深处的记忆。"})
+            inject_offset += 2
 
     debug_prompt = [{"role": m["role"], "content": m["content"][:500]} for m in history]
 
