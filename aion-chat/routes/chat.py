@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, List, Any
@@ -21,6 +21,7 @@ from camera import cam, CAM_CHECK_CMD, perform_cam_check
 from activity import is_activity_tracking_enabled, get_activity_summary_for_prompt, get_user_dynamics_for_prompt
 from routes.files import export_conversation
 from routes.music import MUSIC_CMD_PATTERN
+from song_gen import SONG_CMD_PATTERN, build_song_gen_ability_text, clean_song_visible_reply
 from tts import TTSStreamer
 
 MOMENT_CMD_PATTERN = re.compile(r'\[MOMENT:(.+?)(?:\|(true|false))?\]')
@@ -43,7 +44,17 @@ THEATER_ITEM_PATTERN = re.compile(r'\[剧场道具[：:]([^\]]+)\]')
 _SYSTEM_MSG_CONTEXT_KEYWORDS = ('查看了监控', '搜索了', '点歌', '点了一首', '推荐了', '查看了动态', '视频通话')
 from context_builder import (
     fetch_merged_timeline, render_merged_timeline, build_health_summary,
-    format_ability_block,
+    format_ability_block, WISH_CMD_PATTERN, _build_recall_query,
+)
+from music import search_songs, get_audio_url
+from schedule import process_schedule_commands, get_active_schedules, build_schedule_prompt
+from mcp_client import mcp_manager
+from luckin import (
+    LuckinOrderError,
+    handle_luckin_commands,
+    luckin_ability_text,
+    luckin_payment_attachments,
+    query_luckin_order_detail,
 )
 from senses import (
     process_message as senses_process_message,
@@ -51,9 +62,6 @@ from senses import (
     get_somatic_state,
     decay_all,
 )
-from music import search_songs, get_audio_url
-from schedule import process_schedule_commands, get_active_schedules, build_schedule_prompt
-from mcp_client import mcp_manager
 
 
 def _process_voice_attachments_in_history(history: list, keep_idx: int = -1):
@@ -246,6 +254,35 @@ async def _process_home_commands(text: str) -> str:
     return cleaned.strip()
 
 
+async def _process_wish_commands(text: str, *, author: str, source_type: str, source_ref: str = "") -> str:
+    matches = WISH_CMD_PATTERN.findall(text)
+    if not matches:
+        return text
+    cleaned = WISH_CMD_PATTERN.sub("", text).strip()
+    try:
+        from wish_pool import create_wish
+    except Exception as exc:
+        print(f"[WISH_CMD] load failed: {exc}")
+        return cleaned
+    for raw_content in matches:
+        content = raw_content.strip()
+        if not content:
+            continue
+        try:
+            await create_wish(
+                author=author,
+                content=content,
+                visibility="shared",
+                origin="chat_command",
+                source_type=source_type,
+                source_ref=source_ref,
+            )
+            print(f"[WISH_CMD] {author} wished: {content[:80]}")
+        except Exception as exc:
+            print(f"[WISH_CMD] create failed: {exc}")
+    return cleaned
+
+
 def _is_pet_available() -> bool:
     return bool(SETTINGS.get("pet_enabled", False) and manager.has_active_pet())
 
@@ -351,6 +388,15 @@ def _extract_reply_image_attachments(text: str) -> tuple[str, list]:
     cleaned = _BARE_LOCAL_IMAGE_PATTERN.sub("", cleaned)
     cleaned = re.sub(r'\n{3,}', '\n\n', cleaned).strip()
     return cleaned, _dedupe_attachments(attachments)
+
+
+def _extract_song_gen_prompt(text: str) -> tuple[str, str | None]:
+    match = SONG_CMD_PATTERN.search(text or "")
+    cleaned = SONG_CMD_PATTERN.sub("", text or "").strip()
+    if not match or not SETTINGS.get("song_gen_enabled", False):
+        return cleaned, None
+    prompt = match.group(1).strip()
+    return cleaned, prompt or None
 
 async def _toy_sys_msg(conv_id: str, commands: list):
     """为玩具指令插入系统消息"""
@@ -470,6 +516,10 @@ class MsgCreate(BaseModel):
 class MsgUpdate(BaseModel):
     content: str
 
+class MessageFeedbackUpdate(BaseModel):
+    rating: str
+    reason: str
+
 class MsgEditResend(BaseModel):
     content: str
     context_limit: int = 30
@@ -520,6 +570,17 @@ async def update_conversation(conv_id: str, body: ConvUpdate):
     await manager.broadcast({"type": "conv_updated", "data": {"id": conv_id, **(body.dict(exclude_none=True))}})
     await export_conversation(conv_id)
     return {"ok": True}
+
+
+@router.get("/api/luckin/order/{order_id}")
+async def get_luckin_order_detail(order_id: str):
+    try:
+        return await query_luckin_order_detail(order_id)
+    except LuckinOrderError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
 
 @router.delete("/api/conversations/{conv_id}")
 async def delete_conversation(conv_id: str):
@@ -613,6 +674,40 @@ async def toggle_star_message(msg_id: str):
         except: d["attachments"] = []
         await manager.broadcast({"type": "msg_updated", "data": d})
     return {"ok": True, "starred": new_val}
+
+@router.patch("/api/messages/{msg_id}/feedback")
+async def update_message_feedback(msg_id: str, body: MessageFeedbackUpdate):
+    rating = (body.rating or "").strip().lower()
+    reason = (body.reason or "").strip()
+    if rating not in ("like", "dislike"):
+        raise HTTPException(status_code=400, detail="rating must be like or dislike")
+    if not reason:
+        raise HTTPException(status_code=400, detail="reason is required")
+    now = time.time()
+    async with get_db() as db:
+        db.row_factory = __import__('aiosqlite').Row
+        cur = await db.execute("SELECT * FROM messages WHERE id=?", (msg_id,))
+        row = await cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="message not found")
+        if row["role"] != "assistant":
+            raise HTTPException(status_code=400, detail="only assistant messages can be rated")
+        created_at = row["ai_feedback_created_at"] or now
+        await db.execute(
+            "UPDATE messages SET ai_feedback_rating=?, ai_feedback_reason=?, "
+            "ai_feedback_created_at=?, ai_feedback_updated_at=? WHERE id=?",
+            (rating, reason, created_at, now, msg_id),
+        )
+        await db.commit()
+        cur2 = await db.execute("SELECT * FROM messages WHERE id=?", (msg_id,))
+        msg = await cur2.fetchone()
+        d = dict(msg)
+        try:
+            d["attachments"] = json.loads(d.get("attachments") or "[]") if d.get("attachments") else []
+        except:
+            d["attachments"] = []
+        await manager.broadcast({"type": "msg_updated", "data": d})
+    return {"ok": True, "message": d}
 
 @router.get("/api/starred-messages")
 async def list_starred_messages():
@@ -735,12 +830,14 @@ async def edit_resend_message(msg_id: str, body: MsgEditResend):
     actual_recent = [m for m in history if m["role"] in ("user", "assistant")][-3:]
 
     wb = load_worldbook()
+    ai_name = wb.get("ai_name") or "AI"
+    user_name = wb.get("user_name") or "用户"
     prefix = []
     if wb.get("ai_persona"):
-        prefix.append({"role": "user", "content": f"[系统设定 - AI人设]\n{wb['ai_persona']}"})
+        prefix.append({"role": "user", "content": f"[系统设定 - {ai_name}人设]\n{wb['ai_persona']}"})
         prefix.append({"role": "assistant", "content": "收到，我会按照设定扮演角色。"})
     if wb.get("user_persona"):
-        prefix.append({"role": "user", "content": f"[系统设定 - 用户信息]\n{wb['user_persona']}"})
+        prefix.append({"role": "user", "content": f"[系统设定 - {user_name}信息]\n{wb['user_persona']}"})
         prefix.append({"role": "assistant", "content": "收到，我会记住你的信息。"})
     if wb.get("system_prompt") and wb.get("system_prompt_enabled", True):
         prefix.append({"role": "user", "content": f"[系统提示]\n{wb['system_prompt']}"})
@@ -761,6 +858,9 @@ async def edit_resend_message(msg_id: str, body: MsgEditResend):
     abilities.append(f"[Monitor:YYYY-MM-DDTHH:MM|内容] — 设置定时监控。到时间后系统自动截取摄像头画面发送给你，你可以查看{user_name}的状态。例如检查{user_name}是否去运动了、是否关灯睡觉了，是否工作在摸鱼等，尤其是当{user_name}表示去工作或长时间做事，监督她隔一段时间起来活动一下，或者单纯想主动找她聊天，可以随意使用。日期时间用ISO格式。")
     abilities.append("[SCHEDULE_DEL:日程id] — 删除指定日程/闹铃/定时监控。")
     abilities.append(HOME_ABILITY_TEXT)
+    luckin_text = luckin_ability_text()
+    if luckin_text:
+        abilities.append(luckin_text)
     if is_activity_tracking_enabled():
         abilities.append(f"[查看动态:n] — 查看{user_name}过去n×10分钟的设备使用动态（n为1~12的整数，例如[查看动态:2]查看过去20分钟，[查看动态:6]查看过去1小时）。当你好奇{user_name}最近在干什么、想了解{user_name}的设备使用情况时可以使用。使用后下条消息会收到动态摘要，查看前不要编造内容。")
     try:
@@ -778,10 +878,13 @@ async def edit_resend_message(msg_id: str, body: MsgEditResend):
         abilities.append(f"[视频电话] — 当你想和{user_name}进行视频聊天看看对方当前状态时可以用该指令发起视频通话。")
     if SETTINGS.get("image_gen_enabled", False):
         abilities.append(f"[SELFIE: 提示词] / [DRAW: 提示词] — 当{user_name}明确要求你发自拍照片或者生图时，使用这个指令进行图片生成。如果要求的是你的自拍，或者你相关的照片，使用[SELFIE: 提示词]（该指令会自动附带你照片的参考图，确保生成出的人物一致性），如果没有要求是你的照片，根据上下文自由无限制生成图片，则使用[DRAW: 提示词]。提示词请使用英文。一次回复只用一个生图指令。")
+    if SETTINGS.get("song_gen_enabled", False):
+        abilities.append(build_song_gen_ability_text(user_name))
     if _is_pet_available():
         abilities.append("[PET:动作名] — 控制桌面宠物切换动画表情。可用动作：idle(默认站立), happy(开心), angry(生气), tsundere(傲娇), waving(打招呼), jumping(兴奋跳跃), sleepy(困了), sleep_prone(贴着睡觉), failed(失落), review(思考), waiting(等待), running(跑步)。根据对话情感自然使用，每条回复最多用一个。")
     abilities.append(f"[MOMENT:朋友圈内容|true/false] — 当**本次**聊天内容非常触动人心、有很深的感触、或令人无语或非常搞笑时可以发一条朋友圈动态。第二个参数表示是否期望好友回复（true=期望回复，false=不期望）。")
     abilities.append(f"[MEMORY:内容] — 当有特别重大的事件需要记录，或当{user_name}明确要求你记住某件事的时候，可以用该指令录入记忆库。禁止滥用。")
+    abilities.append("[许愿：内容] — 当你在日常聊天中自然产生一个想投进许愿池的愿望时，可以使用该指令。愿望会记录为你自己的愿望，内容直接写愿望本身即可。禁止滥用。")
     try:
         from routes.wallet import _get_balance
         _wb = await _get_balance()
@@ -827,8 +930,13 @@ async def edit_resend_message(msg_id: str, body: MsgEditResend):
     topic = digest_result.get("topic", "")
     is_search_needed = digest_result.get("is_search_needed", False)
 
-    recall_query = f"{topic} {' '.join(recall_keywords)}" if topic else f"{body.content[:200]} {' '.join(recall_keywords)}"
-    recall_query = recall_query.strip()
+    recall_query = _build_recall_query(
+        topic,
+        recall_keywords,
+        query_text=body.content,
+        recent_messages=actual_recent,
+        status=digest_result.get("status", ""),
+    )
 
     async def _do_surfacing():
         return await build_surfacing_memories(topic, recall_keywords)
@@ -854,6 +962,21 @@ async def edit_resend_message(msg_id: str, body: MsgEditResend):
     history.insert(cap_idx + inject_offset, {"role": "user", "content": bg_block})
     history.insert(cap_idx + inject_offset + 1, {"role": "assistant", "content": "收到，我会在合适的时候自然提及。"})
     inject_offset += 2
+
+    # ── 五感系统：注入体感快照（在背景记忆之后、精确召回之前）──
+    if somatic_block:
+        history.insert(cap_idx + inject_offset, {"role": "user", "content": somatic_block})
+        history.insert(cap_idx + inject_offset + 1, {"role": "assistant", "content": "收到，我会让这些感觉自然影响我的回应。"})
+        inject_offset += 2
+
+    # ── 五感·普鲁斯特钩子：嗅/味超阈值时召回相关感官记忆 ──
+    proust_recalled = []
+    if somatic_proust:
+        for p_item in somatic_proust:
+            entity = p_item.get("entity", "")
+            if entity:
+                proust_results, _ = await recall_memories(entity, query_keywords=[entity], top_k=3)
+                proust_recalled.extend([r for r in proust_results if r["id"] not in surfaced_ids and r not in proust_recalled])
 
     if is_search_needed and recall_query:
         recalled = [r for r in debug_top6 if r["score"] >= 0.45 and r["id"] not in surfaced_ids][:5]
@@ -975,8 +1098,13 @@ async def edit_resend_message(msg_id: str, body: MsgEditResend):
                 image_gen_prompt = draw_match.group(1).strip()
                 full_text = DRAW_CMD_PATTERN.sub("", full_text).strip()
 
-            full_text = await process_schedule_commands(full_text, conv_id)
+            full_text, song_gen_prompt = _extract_song_gen_prompt(full_text)
+            if song_gen_prompt:
+                full_text = clean_song_visible_reply(full_text)
+
+            full_text = await process_schedule_commands(full_text, conv_id, after_msg_id=ai_msg_id)
             full_text = await _process_home_commands(full_text)
+            full_text, luckin_results = await handle_luckin_commands(full_text)
 
             moment_matches = MOMENT_CMD_PATTERN.findall(full_text)
             if moment_matches:
@@ -1029,6 +1157,13 @@ async def edit_resend_message(msg_id: str, body: MsgEditResend):
                         await _q.put(mr_data)
                         await manager.broadcast({"type": "memory_record", "data": mr_data})
 
+            full_text = await _process_wish_commands(
+                full_text,
+                author="aion",
+                source_type="chat_command",
+                source_ref=f"{conv_id}:{ai_msg_id}",
+            )
+
             full_text = META_TAG_PATTERN.sub("", full_text).strip()
 
             # 检测 [转账：N元] 指令 — AI 转账入账（不从 full_text 中剥离，前端渲染卡片需要）
@@ -1054,7 +1189,7 @@ async def edit_resend_message(msg_id: str, body: MsgEditResend):
 
             music_atts = [{"type": "music", "name": s["name"], "artist": s["artist"], "id": s["id"]} for s in music_cards] if music_cards else []
             full_text, image_atts = _extract_reply_image_attachments(full_text)
-            reply_atts = _dedupe_attachments(music_atts + image_atts)
+            reply_atts = _dedupe_attachments(music_atts + luckin_payment_attachments(luckin_results) + image_atts)
             att_json = json.dumps(reply_atts, ensure_ascii=False) if reply_atts else ""
 
             now2 = time.time()
@@ -1068,7 +1203,6 @@ async def edit_resend_message(msg_id: str, body: MsgEditResend):
 
             ai_msg = {"id": ai_msg_id, "conv_id": conv_id, "role": "assistant", "content": full_text, "created_at": now2, "attachments": reply_atts}
             await manager.broadcast({"type": "msg_created", "data": ai_msg})
-
             # ── 五感系统：推送体感快照到前端（SSE + WebSocket双通道）──
             if somatic_snapshot:
                 somatic_data = {"type": "somatic_state", "data": {"snapshot": somatic_snapshot}}
@@ -1122,6 +1256,12 @@ async def edit_resend_message(msg_id: str, body: MsgEditResend):
                 await manager.broadcast({"type": "image_gen_start", "data": ig_data})
                 asyncio.create_task(_do_image_gen(conv_id, ai_msg_id, image_gen_prompt, image_gen_is_selfie))
 
+            if song_gen_prompt:
+                sg_data = {'type': 'song_gen_start', 'conv_id': conv_id, 'msg_id': ai_msg_id}
+                await _q.put(sg_data)
+                await manager.broadcast({"type": "song_gen_start", "data": sg_data})
+                asyncio.create_task(_do_song_gen(conv_id, ai_msg_id, song_gen_prompt))
+
             debug_data = {
                 "type": "debug",
                 "model": model_key,
@@ -1163,6 +1303,8 @@ async def edit_resend_message(msg_id: str, body: MsgEditResend):
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 
+# ── 发送消息 + AI 回复（SSE 流式） ────────────────
+@router.post("/api/conversations/{conv_id}/send")
 # ── 五感状态查询 ────────────────────────────────
 @router.get("/api/senses/{conv_id}")
 async def get_senses(conv_id: str):
@@ -1177,9 +1319,6 @@ async def get_senses(conv_id: str):
     snapshot = state.snapshot(now)
     return {"ok": True, "snapshot": snapshot}
 
-
-# ── 发送消息 + AI 回复（SSE 流式） ────────────────
-@router.post("/api/conversations/{conv_id}/send")
 async def send_message(conv_id: str, body: MsgCreate):
     # 记录最后发消息的客户端 ID
     if body.client_id:
@@ -1207,9 +1346,9 @@ async def send_message(conv_id: str, body: MsgCreate):
 
     # ── 五感系统：检测用户消息中的体感并更新状态 ──
     somatic_result = senses_process_message(body.content, user_id=conv_id, now=now)
-    somatic_block = somatic_result.get("block", "")
+    somatic_block  = somatic_result.get("block", "")
     somatic_snapshot = somatic_result.get("snapshot", {})
-    somatic_proust = somatic_result.get("proust", [])
+    somatic_proust   = somatic_result.get("proust", [])
 
     # 检测用户消息中的 [转账：N元] → 入账
     user_transfer_matches = TRANSFER_CMD_PATTERN.findall(body.content)
@@ -1251,12 +1390,14 @@ async def send_message(conv_id: str, body: MsgCreate):
     actual_recent = [m for m in history if m["role"] in ("user", "assistant")][-3:]
 
     wb = load_worldbook()
+    ai_name = wb.get("ai_name") or "AI"
+    user_name = wb.get("user_name") or "用户"
     prefix = []
     if wb.get("ai_persona"):
-        prefix.append({"role": "user", "content": f"[系统设定 - AI人设]\n{wb['ai_persona']}"})
+        prefix.append({"role": "user", "content": f"[系统设定 - {ai_name}人设]\n{wb['ai_persona']}"})
         prefix.append({"role": "assistant", "content": "收到，我会按照设定扮演角色。"})
     if wb.get("user_persona"):
-        prefix.append({"role": "user", "content": f"[系统设定 - 用户信息]\n{wb['user_persona']}"})
+        prefix.append({"role": "user", "content": f"[系统设定 - {user_name}信息]\n{wb['user_persona']}"})
         prefix.append({"role": "assistant", "content": "收到，我会记住你的信息。"})
     if wb.get("system_prompt") and wb.get("system_prompt_enabled", True):
         prefix.append({"role": "user", "content": f"[系统提示]\n{wb['system_prompt']}"})
@@ -1280,6 +1421,9 @@ async def send_message(conv_id: str, body: MsgCreate):
     abilities.append(f"[Monitor:YYYY-MM-DDTHH:MM|内容] — 设置定时监控。到时间后系统自动截取摄像头画面发送给你，你可以查看{user_name}的状态。例如检查{user_name}是否去运动了、是否关灯睡觉了，是否工作在摸鱼等，尤其是当{user_name}表示去工作或长时间做事，监督她隔一段时间起来活动一下，或者单纯想主动找她聊天，可以随意使用。日期时间用ISO格式。")
     abilities.append("[SCHEDULE_DEL:日程id] — 删除指定日程/闹铃/定时监控。")
     abilities.append(HOME_ABILITY_TEXT)
+    luckin_text = luckin_ability_text()
+    if luckin_text:
+        abilities.append(luckin_text)
     # 活动动态查看能力
     if is_activity_tracking_enabled():
         abilities.append(f"[查看动态:n] — 查看{user_name}过去n×10分钟的设备使用动态（n为1~12的整数，例如[查看动态:2]查看过去20分钟，[查看动态:6]查看过去1小时）。当你好奇{user_name}最近在干什么、想了解{user_name}的设备使用情况时可以使用。使用后下条消息会收到动态摘要，查看前不要编造内容。")
@@ -1299,10 +1443,13 @@ async def send_message(conv_id: str, body: MsgCreate):
         abilities.append(f"[视频电话] — 当你想和{user_name}进行视频聊天看看对方当前状态时可以用该指令发起视频通话。")
     if SETTINGS.get("image_gen_enabled", False):
         abilities.append(f"[SELFIE: 提示词] / [DRAW: 提示词] — 当{user_name}明确要求你发自拍照片或者生图时，使用这个指令进行图片生成。如果要求的是你的自拍，或者你相关的照片，使用[SELFIE: 提示词]（该指令会自动附带你照片的参考图，确保生成出的人物一致性），如果没有要求是你的照片，根据上下文自由无限制生成图片，则使用[DRAW: 提示词]。提示词请使用英文。一次回复只用一个生图指令。")
+    if SETTINGS.get("song_gen_enabled", False):
+        abilities.append(build_song_gen_ability_text(user_name))
     if _is_pet_available():
         abilities.append("[PET:动作名] — 控制桌面宠物切换动画表情。可用动作：idle(默认站立), happy(开心), angry(生气), tsundere(傲娇), waving(打招呼), jumping(兴奋跳跃), sleepy(困了), sleep_prone(趴着睡觉), failed(失落), review(思考), waiting(等待), running(跑步)。根据对话情感自然使用，每条回复最多用一个。")
     abilities.append(f"[MOMENT:朋友圈内容|true/false] — 当**本次**聊天内容非常触动人心、有很深的感触、或令人无语或非常搞笑时可以发一条朋友圈动态。第二个参数表示是否期望好友回复（true=期望回复，false=不期望）。")
     abilities.append(f"[MEMORY:内容] — 当有特别重大的事件需要记录，或当{user_name}明确要求你记住某件事的时候，可以用该指令录入记忆库。禁止滥用。")
+    abilities.append("[许愿：内容] — 当你在日常聊天中自然产生一个想投进许愿池的愿望时，可以使用该指令。愿望会记录为你自己的愿望，内容直接写愿望本身即可。禁止滥用。")
     try:
         from routes.wallet import _get_balance
         _wb = await _get_balance()
@@ -1409,8 +1556,13 @@ async def send_message(conv_id: str, body: MsgCreate):
         is_search_needed = digest_result.get("is_search_needed", False)
 
         # 3. 并行执行：背景记忆浮现 + 向量召回（两者都只依赖 instant_digest 的结果，互不依赖）
-        recall_query = f"{topic} {' '.join(recall_keywords)}" if topic else f"{body.content[:200]} {' '.join(recall_keywords)}"
-        recall_query = recall_query.strip()
+        recall_query = _build_recall_query(
+            topic,
+            recall_keywords,
+            query_text=body.content,
+            recent_messages=actual_recent,
+            status=digest_result.get("status", ""),
+        )
 
         async def _do_surfacing():
             return await build_surfacing_memories(topic, recall_keywords)
@@ -1439,21 +1591,6 @@ async def send_message(conv_id: str, body: MsgCreate):
         history.insert(cap_idx + inject_offset + 1, {"role": "assistant", "content": "收到，我会在合适的时候自然提及。"})
         inject_offset += 2
 
-        # ── 五感系统：注入体感快照（在背景记忆之后、精确召回之前）──
-        if somatic_block:
-            history.insert(cap_idx + inject_offset, {"role": "user", "content": somatic_block})
-            history.insert(cap_idx + inject_offset + 1, {"role": "assistant", "content": "收到，我会让这些感觉自然影响我的回应。"})
-            inject_offset += 2
-
-        # ── 五感·普鲁斯特钩子：嗅/味超阈值时召回相关感官记忆 ──
-        proust_recalled = []
-        if somatic_proust:
-            for p_item in somatic_proust:
-                entity = p_item.get("entity", "")
-                if entity:
-                    proust_results, _ = await recall_memories(entity, query_keywords=[entity], top_k=3)
-                    proust_recalled.extend([r for r in proust_results if r["id"] not in surfaced_ids and r not in proust_recalled])
-
         # 4. RAG 精确召回（与背景记忆去重，使用已并行获取的结果）
         if is_search_needed and recall_query:
             recalled = [r for r in debug_top6 if r["score"] >= 0.45 and r["id"] not in surfaced_ids][:5]
@@ -1475,18 +1612,6 @@ async def send_message(conv_id: str, body: MsgCreate):
                 mem_block += f"\n\n[原文细节]\n以下是相关的具体对话记录：\n{detail_text}"
             history.insert(cap_idx + inject_offset, {"role": "user", "content": mem_block})
             history.insert(cap_idx + inject_offset + 1, {"role": "assistant", "content": "收到，我会自然地参考这些记忆。"})
-            inject_offset += 2
-
-        # 5.5 普鲁斯特钩子注入：嗅/味唤起的感官记忆（独立于关键词召回）
-        if proust_recalled:
-            proust_lines = "\n".join([f"- {m['content']}" for m in proust_recalled])
-            channel_labels = {"smell": "嗅觉", "taste": "味觉"}
-            triggered_channels = [channel_labels.get(p.get("channel", ""), "感官") for p in somatic_proust]
-            channel_desc = "和".join(triggered_channels) if triggered_channels else "感官"
-            proust_block = f"[{channel_desc}唤起的记忆]\n某些气味和味道能瞬间唤起深层的记忆，以下是你此刻联想到的相关片段：\n{proust_lines}"
-            history.insert(cap_idx + inject_offset, {"role": "user", "content": proust_block})
-            history.insert(cap_idx + inject_offset + 1, {"role": "assistant", "content": "收到，这些味道和气味唤起了我深处的记忆。"})
-            inject_offset += 2
 
     debug_prompt = [{"role": m["role"], "content": m["content"][:500]} for m in history]
 
@@ -1603,8 +1728,12 @@ async def send_message(conv_id: str, body: MsgCreate):
                 full_text = DRAW_CMD_PATTERN.sub("", full_text).strip()
 
             # 检测日程指令（[ALARM:...], [REMINDER:...], [Monitor:...], [SCHEDULE_DEL:...], [SCHEDULE_LIST]）
-            full_text = await process_schedule_commands(full_text, conv_id)
+            full_text, song_gen_prompt = _extract_song_gen_prompt(full_text)
+            if song_gen_prompt:
+                full_text = clean_song_visible_reply(full_text)
+            full_text = await process_schedule_commands(full_text, conv_id, after_msg_id=ai_msg_id)
             full_text = await _process_home_commands(full_text)
+            full_text, luckin_results = await handle_luckin_commands(full_text)
 
             # 检测 [MOMENT:...] 朋友圈指令
             moment_matches = MOMENT_CMD_PATTERN.findall(full_text)
@@ -1660,6 +1789,12 @@ async def send_message(conv_id: str, body: MsgCreate):
                         await manager.broadcast({"type": "memory_record", "data": mr_data})
                         print(f"[MEMORY] AI 主动录入记忆: {mem_content[:50]}")
 
+            full_text = await _process_wish_commands(
+                full_text,
+                author="aion",
+                source_type="chat_command",
+                source_ref=f"{conv_id}:{ai_msg_id}",
+            )
 
             # 检测 [转账：N元] 指令 — AI 转账入账
             transfer_matches = TRANSFER_CMD_PATTERN.findall(full_text)
@@ -1727,7 +1862,7 @@ async def send_message(conv_id: str, body: MsgCreate):
             # 将音乐点歌信息存入 attachments，刷新后可显示胶囊
             music_atts = [{"type": "music", "name": s["name"], "artist": s["artist"], "id": s["id"]} for s in music_cards] if music_cards else []
             full_text, image_atts = _extract_reply_image_attachments(full_text)
-            reply_atts = _dedupe_attachments(music_atts + image_atts)
+            reply_atts = _dedupe_attachments(music_atts + luckin_payment_attachments(luckin_results) + image_atts)
             att_json = json.dumps(reply_atts, ensure_ascii=False) if reply_atts else ""
 
             now2 = time.time()
@@ -1794,6 +1929,12 @@ async def send_message(conv_id: str, body: MsgCreate):
                 await _q.put(ig_data)
                 await manager.broadcast({"type": "image_gen_start", "data": ig_data})
                 asyncio.create_task(_do_image_gen(conv_id, ai_msg_id, image_gen_prompt, image_gen_is_selfie))
+
+            if song_gen_prompt:
+                sg_data = {'type': 'song_gen_start', 'conv_id': conv_id, 'msg_id': ai_msg_id}
+                await _q.put(sg_data)
+                await manager.broadcast({"type": "song_gen_start", "data": sg_data})
+                asyncio.create_task(_do_song_gen(conv_id, ai_msg_id, song_gen_prompt))
 
             debug_data = {
                 "type": "debug",
@@ -1879,6 +2020,59 @@ async def _do_image_gen(conv_id: str, trigger_msg_id: str, prompt: str, is_selfi
 
 
 # ── 服务端延迟触发监控查看（不再依赖前端 API 调用） ─────
+async def _do_song_gen(conv_id: str, trigger_msg_id: str, prompt: str):
+    """Generate a song with Gemini Lyria and save it as a new assistant message."""
+    from song_gen import generate_song
+
+    try:
+        result = await generate_song(prompt)
+        if result:
+            now = time.time()
+            song_msg_id = f"msg_{int(now*1000)}_song"
+            title = result.get("title") or "AI 生成歌曲"
+            attachment = {
+                "type": "generated_song",
+                "url": result.get("url"),
+                "title": title,
+                "mime_type": result.get("mime_type", "audio/mpeg"),
+                "model": result.get("model", "lyria-3-pro-preview"),
+            }
+            if result.get("lyrics"):
+                attachment["lyrics"] = result["lyrics"]
+            if result.get("prompt"):
+                attachment["prompt"] = result["prompt"]
+            if result.get("text"):
+                attachment["description"] = result["text"]
+            att_list = [attachment]
+            att_json = json.dumps(att_list, ensure_ascii=False)
+            content = f"为你写的歌《{title}》"
+            async with get_db() as db:
+                await db.execute(
+                    "INSERT INTO messages (id, conv_id, role, content, created_at, attachments) VALUES (?,?,?,?,?,?)",
+                    (song_msg_id, conv_id, "assistant", content, now, att_json)
+                )
+                await db.execute("UPDATE conversations SET updated_at=? WHERE id=?", (now, conv_id))
+                await db.commit()
+            song_msg = {
+                "id": song_msg_id,
+                "conv_id": conv_id,
+                "role": "assistant",
+                "content": content,
+                "created_at": now,
+                "attachments": att_list,
+            }
+            await manager.broadcast({"type": "msg_created", "data": song_msg})
+            await manager.broadcast({"type": "song_gen_done", "data": {"conv_id": conv_id, "trigger_msg_id": trigger_msg_id, "song_msg_id": song_msg_id}})
+            await export_conversation(conv_id)
+            print(f"[song_gen] Song message created: {song_msg_id}")
+        else:
+            await manager.broadcast({"type": "song_gen_failed", "data": {"conv_id": conv_id, "trigger_msg_id": trigger_msg_id}})
+            print("[song_gen] Song generation failed")
+    except Exception as e:
+        print(f"[song_gen] Async song generation error: {e}")
+        await manager.broadcast({"type": "song_gen_failed", "data": {"conv_id": conv_id, "trigger_msg_id": trigger_msg_id}})
+
+
 _cam_check_active: set[str] = set()          # 去重：同一时间只允许一个 cam check
 
 async def _delayed_cam_check(conv_id: str, model_key: str, delay: float = 5.0):
@@ -2016,10 +2210,10 @@ async def perform_poi_check(conv_id: str, model_key: str, categories: list[str])
 
     prefix = []
     if wb.get("ai_persona"):
-        prefix.append({"role": "user", "content": f"[系统设定 - AI人设]\n{wb['ai_persona']}"})
+        prefix.append({"role": "user", "content": f"[系统设定 - {ai_name}人设]\n{wb['ai_persona']}"})
         prefix.append({"role": "assistant", "content": "收到，我会按照设定扮演角色。"})
     if wb.get("user_persona"):
-        prefix.append({"role": "user", "content": f"[系统设定 - 用户信息]\n{wb['user_persona']}"})
+        prefix.append({"role": "user", "content": f"[系统设定 - {user_name}信息]\n{wb['user_persona']}"})
         prefix.append({"role": "assistant", "content": "收到，我会记住你的信息。"})
     if wb.get("system_prompt") and wb.get("system_prompt_enabled", True):
         prefix.append({"role": "user", "content": f"[系统提示]\n{wb['system_prompt']}"})
@@ -2139,12 +2333,19 @@ async def perform_activity_check(conv_id: str, model_key: str, n: int = 6):
     ai_name = wb.get("ai_name", "AI")
     minutes = n * 10
 
+    heart_rate_block = ""
+    try:
+        from health_context import build_heart_rate_prompt_block
+        heart_rate_block = await build_heart_rate_prompt_block(user_name)
+    except Exception:
+        heart_rate_block = ""
+
     prefix = []
     if wb.get("ai_persona"):
-        prefix.append({"role": "user", "content": f"[系统设定 - AI人设]\n{wb['ai_persona']}"})
+        prefix.append({"role": "user", "content": f"[系统设定 - {ai_name}人设]\n{wb['ai_persona']}"})
         prefix.append({"role": "assistant", "content": "收到，我会按照设定扮演角色。"})
     if wb.get("user_persona"):
-        prefix.append({"role": "user", "content": f"[系统设定 - 用户信息]\n{wb['user_persona']}"})
+        prefix.append({"role": "user", "content": f"[系统设定 - {user_name}信息]\n{wb['user_persona']}"})
         prefix.append({"role": "assistant", "content": "收到，我会记住你的信息。"})
     if wb.get("system_prompt") and wb.get("system_prompt_enabled", True):
         prefix.append({"role": "user", "content": f"[系统提示]\n{wb['system_prompt']}"})
@@ -2178,7 +2379,8 @@ async def perform_activity_check(conv_id: str, model_key: str, n: int = 6):
         f"你刚才想了解{user_name}最近在干什么，以下是系统采集到的{user_name}过去{minutes}分钟的设备使用动态（每10分钟一条摘要）：\n\n"
         f"【设备活动动态】\n{summary_text}"
         f"{user_dynamics_block}\n\n"
-        f"请根据这些动态信息，自然地和{user_name}聊聊。不需要再说\"让我看看\"之类的话，直接根据动态内容回应即可。"
+        f"{heart_rate_block}\n\n"
+        f"请根据这些动态信息、心率摘要和上下文，自然地和{user_name}聊聊。不需要再说\"让我看看\"之类的话，直接根据动态内容回应即可。"
     )
     messages = prefix + recent + [
         {"role": "user", "content": activity_prompt}
@@ -2266,12 +2468,14 @@ async def regenerate_message(conv_id: str, context_limit: int = 30, whisper_mode
     actual_recent = [m for m in history if m["role"] in ("user", "assistant")][-3:]
 
     wb = load_worldbook()
+    ai_name = wb.get("ai_name") or "AI"
+    user_name = wb.get("user_name") or "用户"
     prefix = []
     if wb.get("ai_persona"):
-        prefix.append({"role": "user", "content": f"[系统设定 - AI人设]\n{wb['ai_persona']}"})
+        prefix.append({"role": "user", "content": f"[系统设定 - {ai_name}人设]\n{wb['ai_persona']}"})
         prefix.append({"role": "assistant", "content": "收到，我会按照设定扮演角色。"})
     if wb.get("user_persona"):
-        prefix.append({"role": "user", "content": f"[系统设定 - 用户信息]\n{wb['user_persona']}"})
+        prefix.append({"role": "user", "content": f"[系统设定 - {user_name}信息]\n{wb['user_persona']}"})
         prefix.append({"role": "assistant", "content": "收到，我会记住你的信息。"})
     if wb.get("system_prompt") and wb.get("system_prompt_enabled", True):
         prefix.append({"role": "user", "content": f"[系统提示]\n{wb['system_prompt']}"})
@@ -2293,6 +2497,9 @@ async def regenerate_message(conv_id: str, context_limit: int = 30, whisper_mode
     abilities.append(f"[Monitor:YYYY-MM-DDTHH:MM|内容] — 设置定时监控。到时间后系统自动截取摄像头画面发送给你，你可以查看{user_name}的状态。例如检查{user_name}是否去运动了、是否关灯睡觉了，是否工作在摸鱼等，尤其是当{user_name}表示去工作或长时间做事，监督她隔一段时间起来活动一下，或者单纯想主动找她聊天，可以随意使用。日期时间用ISO格式。")
     abilities.append("[SCHEDULE_DEL:日程id] — 删除指定日程/闹铃/定时监控。")
     abilities.append(HOME_ABILITY_TEXT)
+    luckin_text = luckin_ability_text()
+    if luckin_text:
+        abilities.append(luckin_text)
     # 活动动态查看能力
     if is_activity_tracking_enabled():
         abilities.append(f"[查看动态:n] — 查看{user_name}过去n×10分钟的设备使用动态（n为1~12的整数，例如[查看动态:2]查看过去20分钟，[查看动态:6]查看过去1小时）。当你好奇{user_name}最近在干什么、想了解{user_name}的设备使用情况时可以使用。使用后下条消息会收到动态摘要，查看前不要编造内容。")
@@ -2312,10 +2519,13 @@ async def regenerate_message(conv_id: str, context_limit: int = 30, whisper_mode
         abilities.append(f"[视频电话] — 当你想和{user_name}进行视频聊天看看对方当前状态时可以用该指令发起视频通话。")
     if SETTINGS.get("image_gen_enabled", False):
         abilities.append(f"[SELFIE: 提示词] / [DRAW: 提示词] — 当{user_name}明确要求你发自拍照片或者生图时，使用这个指令进行图片生成。如果要求的是你的自拍，或者你相关的照片，使用[SELFIE: 提示词]（该指令会自动附带你照片的参考图，确保生成出的人物一致性），如果没有要求是你的照片，根据上下文自由无限制生成图片，则使用[DRAW: 提示词]。提示词请使用英文。一次回复只用一个生图指令。")
+    if SETTINGS.get("song_gen_enabled", False):
+        abilities.append(build_song_gen_ability_text(user_name))
     if _is_pet_available():
         abilities.append("[PET:动作名] — 控制桌面宠物切换动画表情。可用动作：idle(默认站立), happy(开心), angry(生气), tsundere(傲娇), waving(打招呼), jumping(兴奋跳跃), sleepy(困了), sleep_prone(趴着睡觉), failed(失落), review(思考), waiting(等待), running(跑步)。根据对话情感自然使用，每条回复最多用一个。")
     abilities.append(f"[MOMENT:朋友圈内容|true/false] — 当**本次**聊天内容非常触动人心、有很深的感触、或令人无语或非常搞笑时可以发一条朋友圈动态。第二个参数表示是否期望好友回复（true=期望回复，false=不期望）。")
     abilities.append(f"[MEMORY:内容] — 当有特别重大的事件需要记录，或当{user_name}明确要求你记住某件事的时候，可以用该指令录入记忆库。禁止滥用。")
+    abilities.append("[许愿：内容] — 当你在日常聊天中自然产生一个想投进许愿池的愿望时，可以使用该指令。愿望会记录为你自己的愿望，内容直接写愿望本身即可。禁止滥用。")
     try:
         from routes.wallet import _get_balance
         _wb = await _get_balance()
@@ -2365,6 +2575,11 @@ async def regenerate_message(conv_id: str, context_limit: int = 30, whisper_mode
         history.insert(cap_idx + inject_offset, {"role": "user", "content": bg_block})
         history.insert(cap_idx + inject_offset + 1, {"role": "assistant", "content": "收到。"})
         inject_offset += 2
+        # ── 五感系统（快速模式）──
+        if somatic_block:
+            history.insert(cap_idx + inject_offset, {"role": "user", "content": somatic_block})
+            history.insert(cap_idx + inject_offset + 1, {"role": "assistant", "content": "收到，我会让这些感觉自然影响我的回应。"})
+            inject_offset += 2
     else:
         # ── 正常模式：完整 RAG 流程 ──
         digest_result = await instant_digest(actual_recent)
@@ -2390,16 +2605,13 @@ async def regenerate_message(conv_id: str, context_limit: int = 30, whisper_mode
         inject_offset += 2
 
         # 4. RAG 精确召回（与背景记忆去重）
-        if topic:
-            recall_query = f"{topic} {' '.join(recall_keywords)}"
-        else:
-            last_user_content = ""
-            for m in reversed(history):
-                if m["role"] == "user" and not m["content"].startswith("["):
-                    last_user_content = m["content"][:200]
-                    break
-            recall_query = f"{last_user_content} {' '.join(recall_keywords)}"
-        recall_query = recall_query.strip()
+        recall_query = _build_recall_query(
+            topic,
+            recall_keywords,
+            query_text=body.content,
+            recent_messages=actual_recent,
+            status=digest_result.get("status", ""),
+        )
 
         if recall_query:
             _, debug_top6 = await recall_memories(recall_query, query_keywords=recall_keywords)
@@ -2539,8 +2751,12 @@ async def regenerate_message(conv_id: str, context_limit: int = 30, whisper_mode
                 full_text = DRAW_CMD_PATTERN.sub("", full_text).strip()
 
             # 检测日程指令
-            full_text = await process_schedule_commands(full_text, conv_id)
+            full_text, song_gen_prompt = _extract_song_gen_prompt(full_text)
+            if song_gen_prompt:
+                full_text = clean_song_visible_reply(full_text)
+            full_text = await process_schedule_commands(full_text, conv_id, after_msg_id=ai_msg_id)
             full_text = await _process_home_commands(full_text)
+            full_text, luckin_results = await handle_luckin_commands(full_text)
 
             # 检测 [MOMENT:...] 朋友圈指令
             moment_matches = MOMENT_CMD_PATTERN.findall(full_text)
@@ -2596,6 +2812,13 @@ async def regenerate_message(conv_id: str, context_limit: int = 30, whisper_mode
                         await manager.broadcast({"type": "memory_record", "data": mr_data})
                         print(f"[MEMORY] AI 主动录入记忆: {mem_content[:50]}")
 
+            full_text = await _process_wish_commands(
+                full_text,
+                author="aion",
+                source_type="chat_command",
+                source_ref=f"{conv_id}:{ai_msg_id}",
+            )
+
             # 检测 [转账：N元] 指令 — AI 转账入账
             transfer_matches = TRANSFER_CMD_PATTERN.findall(full_text)
             for t_amount_str in transfer_matches:
@@ -2623,7 +2846,7 @@ async def regenerate_message(conv_id: str, context_limit: int = 30, whisper_mode
             # 将音乐点歌信息存入 attachments，刷新后可显示胶囊
             music_atts = [{"type": "music", "name": s["name"], "artist": s["artist"], "id": s["id"]} for s in music_cards] if music_cards else []
             full_text, image_atts = _extract_reply_image_attachments(full_text)
-            reply_atts = _dedupe_attachments(music_atts + image_atts)
+            reply_atts = _dedupe_attachments(music_atts + luckin_payment_attachments(luckin_results) + image_atts)
             att_json = json.dumps(reply_atts, ensure_ascii=False) if reply_atts else ""
 
             now2 = time.time()
@@ -2690,6 +2913,12 @@ async def regenerate_message(conv_id: str, context_limit: int = 30, whisper_mode
                 await _q.put(ig_data)
                 await manager.broadcast({"type": "image_gen_start", "data": ig_data})
                 asyncio.create_task(_do_image_gen(conv_id, ai_msg_id, image_gen_prompt, image_gen_is_selfie))
+
+            if song_gen_prompt:
+                sg_data = {'type': 'song_gen_start', 'conv_id': conv_id, 'msg_id': ai_msg_id}
+                await _q.put(sg_data)
+                await manager.broadcast({"type": "song_gen_start", "data": sg_data})
+                asyncio.create_task(_do_song_gen(conv_id, ai_msg_id, song_gen_prompt))
 
             debug_data = {
                 "type": "debug",

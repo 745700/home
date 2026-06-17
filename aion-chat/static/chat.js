@@ -55,6 +55,7 @@ function playRecv() { sndRecv.currentTime = 0; sndRecv.play().catch(() => {}); }
 
 function applyAionTheme(theme) {
   const next = theme === 'light' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
   document.body.dataset.theme = next;
   localStorage.setItem('aion_chat_theme', next);
   const meta = document.querySelector('meta[name="theme-color"]');
@@ -74,16 +75,10 @@ window.addEventListener('storage', e => {
 
 // ── 初始化 ──
 async function init() {
-  // Default models for pure frontend mode
-  models = [
-    { key: 'deepseek-ai/DeepSeek-V3-0324' },
-    { key: 'Qwen/Qwen2.5-7B-Instruct' },
-    { key: 'THUDM/GLM-4-9B-chat' },
-    { key: 'deepseek-ai/DeepSeek-R1' },
-  ];
+  models = await api("GET", "/api/models");
   renderModelSelect();
   worldBook = await api("GET", "/api/worldbook");
-  chatroomConfig = {};
+  try { chatroomConfig = await api("GET", "/api/chatroom/config"); } catch(e) { chatroomConfig = {}; }
   conversations = await api("GET", "/api/conversations");
   const initParams = new URLSearchParams(location.search);
   const targetConvId = initParams.get('conv');
@@ -182,7 +177,7 @@ function onMicSourceChange() {
   if (voiceEnabled) {
     $('voiceToggle').checked = false;
     if (voiceMicSource === 'remote') remoteVoice.stop();
-    else console.log('[voice] toggle off (stub)')
+    else fetch('/api/voice/toggle', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({enabled:false}) });
     voiceEnabled = false;
   }
   voiceMicSource = newSrc;
@@ -206,7 +201,7 @@ async function toggleVoice() {
   } else {
     // PC 后端模式 — 调后端 API
     try {
-      // [voice] stub await // [voice] stub fetch('/api/voice/toggle', {
+      await fetch('/api/voice/toggle', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ enabled, wake_word: wakeWord })
       });
@@ -226,7 +221,7 @@ function voiceHangup() {
   if (isRemoteVoice()) {
     remoteVoice.hangup();
   } else {
-    // [voice] stub fetch('/api/voice/toggle', {
+    fetch('/api/voice/toggle', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ enabled: true, wake_word: $('voiceWakeWord').value.trim() || '老公' })
     });
@@ -243,7 +238,7 @@ function notifyVoiceAiSpeaking(speaking) {
   if (isRemoteVoice() && remoteVoice.enabled) {
     remoteVoice.setAiSpeaking(speaking);
   } else {
-    // [voice] stub fetch('/api/voice/ai-speaking', {
+    fetch('/api/voice/ai-speaking', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ speaking })
     });
@@ -254,7 +249,7 @@ function notifyVoiceCamCheckStart() {
   if (isRemoteVoice() && remoteVoice.enabled) {
     remoteVoice.aiSpeaking = true;
   } else {
-    // [voice] stub fetch('/api/voice/cam-check-start');
+    fetch('/api/voice/cam-check-start', { method: 'POST' });
   }
 }
 
@@ -585,8 +580,7 @@ const remoteVoice = {
     try {
       const form = new FormData();
       form.append('file', new Blob([wav], { type: 'audio/wav' }), 'audio.wav');
-      // [voice] remote-asr stub
-const resp = { ok: false, json: async () => ({ error: 'remote-asr stub' }) };
+      const resp = await fetch('/api/voice/remote-asr', { method: 'POST', body: form });
       console.log(`[RemoteVoice] ASR response status: ${resp.status}`);
       const data = await resp.json();
       const text = (data.text || '').trim();
@@ -729,8 +723,7 @@ const resp = { ok: false, json: async () => ({ error: 'remote-asr stub' }) };
 async function toggleVideoCallEnabled() {
   const enabled = $('videoCallToggle').checked;
   try {
-    // [settings] stub
-await Promise.resolve(); // stub
+    await fetch('/api/settings/video-call', {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ enabled })
@@ -739,8 +732,7 @@ await Promise.resolve(); // stub
 }
 (async function initVideoCallToggle() {
   try {
-    // [settings] stub
-const r = { ok: true, json: async () => ({ enabled: false }) };
+    const r = await fetch('/api/settings/video-call');
     const d = await r.json();
     $('videoCallToggle').checked = !!d.video_call_enabled;
   } catch(e) {}
@@ -750,7 +742,7 @@ const r = { ok: true, json: async () => ({ enabled: false }) };
 async function toggleImageGenEnabled() {
   const enabled = $('imageGenToggle').checked;
   try {
-    // [settings] stub
+    await fetch('/api/settings/image-gen', {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ enabled })
@@ -759,18 +751,35 @@ async function toggleImageGenEnabled() {
 }
 (async function initImageGenToggle() {
   try {
-    // [settings] stub
-const r = { ok: true, json: async () => ({ enabled: false }) };
+    const r = await fetch('/api/settings/image-gen');
     const d = await r.json();
     $('imageGenToggle').checked = !!d.image_gen_enabled;
   } catch(e) {}
 })();
 
 // ── CLI 工具调用开关 ──
+async function toggleSongGenEnabled() {
+  const enabled = $('songGenToggle').checked;
+  try {
+    await fetch('/api/settings/song-gen', {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ enabled })
+    });
+  } catch(e) { console.warn('保存歌曲生成设置失败', e); }
+}
+(async function initSongGenToggle() {
+  try {
+    const r = await fetch('/api/settings/song-gen');
+    const d = await r.json();
+    $('songGenToggle').checked = !!d.song_gen_enabled;
+  } catch(e) {}
+})();
+
 async function toggleGeminiCliTools() {
   const enabled = $('geminiCliToolsToggle').checked;
   try {
-    // [settings] stub
+    await fetch('/api/settings/gemini-cli-tools', {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ enabled })
@@ -779,8 +788,7 @@ async function toggleGeminiCliTools() {
 }
 (async function initGeminiCliToolsToggle() {
   try {
-    // [settings] stub
-const r = { ok: true, json: async () => ({ enabled: false }) };
+    const r = await fetch('/api/settings/gemini-cli-tools');
     const d = await r.json();
     $('geminiCliToolsToggle').checked = !!d.gemini_cli_tools_enabled;
   } catch(e) {}
@@ -796,6 +804,8 @@ let ttsManualStop = false;
 // 分段播放队列：{ msgId: { nextPlay: 0, chunks: {seq: url}, playing: bool } }
 let ttsChunkQueues = {};
 let ttsPlayOrder = []; // 按到达顺序记录 msgId，确保跨消息顺序播放
+let ttsAcceptAfter = Date.now() / 1000;
+const ttsSuppressedMsgIds = new Set();
 
 function clearTTSResumeTimer() {
   if (ttsResumeTimer) {
@@ -816,24 +826,94 @@ function scheduleTTSResume() {
   }, 1500);
 }
 
-function _sendTTSState() {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({type: 'tts_state', enabled: ttsEnabled, voice: ttsVoiceId}));
+function isTTSPlaybackAllowed() {
+  return document.visibilityState !== 'hidden';
+}
+
+function stopLiveTTSQueue() {
+  ttsManualStop = true;
+  clearTTSResumeTimer();
+  ttsAudio.pause();
+  ttsAudio.src = '';
+  ttsChunkQueues = {};
+  ttsPlayOrder = [];
+  ttsPlaying = false;
+  if (voiceInCall || (typeof videoCall !== 'undefined' && videoCall.active)) {
+    notifyVoiceAiSpeaking(false);
   }
 }
+
+function suppressTTSMsg(msgId) {
+  if (msgId) ttsSuppressedMsgIds.add(msgId);
+}
+
+function shouldAcceptTTSMsg(msgId, createdAt, targetClientId) {
+  if (!msgId || ttsSuppressedMsgIds.has(msgId)) return false;
+  if (targetClientId && targetClientId !== _clientId) return false;
+  if (!isTTSPlaybackAllowed()) {
+    suppressTTSMsg(msgId);
+    stopLiveTTSQueue();
+    return false;
+  }
+  const ts = Number(createdAt || 0);
+  if (ts && ts < ttsAcceptAfter) {
+    suppressTTSMsg(msgId);
+    return false;
+  }
+  return true;
+}
+
+function _sendTTSState() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({
+      type: 'tts_state',
+      enabled: ttsEnabled,
+      voice: ttsVoiceId,
+      can_play: isTTSPlaybackAllowed(),
+      active_at: Date.now() / 1000,
+      client_id: _clientId
+    }));
+  }
+}
+
+function refreshTTSPlaybackState() {
+  ttsAcceptAfter = Date.now() / 1000;
+  if (!isTTSPlaybackAllowed()) stopLiveTTSQueue();
+  _sendTTSState();
+}
+
+function suspendTTSPlaybackState() {
+  ttsAcceptAfter = Date.now() / 1000;
+  stopLiveTTSQueue();
+  _sendTTSState();
+}
+
+let ttsPlaybackStateLastSent = 0;
+function bumpTTSPlaybackState() {
+  const now = Date.now();
+  if (now - ttsPlaybackStateLastSent < 1000) return;
+  ttsPlaybackStateLastSent = now;
+  _sendTTSState();
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (isTTSPlaybackAllowed()) refreshTTSPlaybackState();
+  else suspendTTSPlaybackState();
+});
+window.addEventListener('pagehide', suspendTTSPlaybackState);
+window.addEventListener('pageshow', refreshTTSPlaybackState);
+document.addEventListener('freeze', suspendTTSPlaybackState);
+window.addEventListener('focus', bumpTTSPlaybackState);
+document.addEventListener('pointerdown', bumpTTSPlaybackState, { passive: true });
+document.addEventListener('keydown', bumpTTSPlaybackState);
 
 function toggleTTS() {
   ttsEnabled = $('ttsToggle').checked;
   localStorage.setItem('aion_tts_enabled', ttsEnabled);
+  ttsAcceptAfter = Date.now() / 1000;
   _sendTTSState();
   if (!ttsEnabled) {
-    ttsManualStop = true;
-    clearTTSResumeTimer();
-    ttsAudio.pause();
-    ttsAudio.src = '';
-    ttsChunkQueues = {};
-    ttsPlayOrder = [];
-    ttsPlaying = false;
+    stopLiveTTSQueue();
   }
 }
 
@@ -857,6 +937,7 @@ async function refreshTTSVoices() {
         ttsVoiceId = data.voices[0].uri;
         localStorage.setItem('aion_tts_voice', ttsVoiceId);
         sel.value = ttsVoiceId;
+        _sendTTSState();
       }
     } else {
       sel.innerHTML = '<option value="">无可用音色</option>';
@@ -866,11 +947,12 @@ async function refreshTTSVoices() {
   }
 }
 
-function enqueueTTSChunk(msgId, seq, url) {
+function enqueueTTSChunk(msgId, seq, url, createdAt, targetClientId) {
   const isChatroomTTS = msgId.startsWith('cm_');
   if (!isChatroomTTS && !ttsEnabled && !(typeof videoCall !== 'undefined' && videoCall.active)) return;
   // 忽略小剧场的 TTS（tm_ 前缀），避免重复播放
   if (msgId.startsWith('tm_')) return;
+  if (!shouldAcceptTTSMsg(msgId, createdAt, targetClientId)) return;
   if (!ttsChunkQueues[msgId]) {
     ttsChunkQueues[msgId] = { nextPlay: 0, chunks: {} };
     ttsPlayOrder.push(msgId);
@@ -961,7 +1043,13 @@ async function playNextTTSChunk() {
   }
 }
 
-function finishTTSForMsg(msgId) {
+function finishTTSForMsg(msgId, createdAt, targetClientId) {
+  if (targetClientId && targetClientId !== _clientId) return;
+  const ts = Number(createdAt || 0);
+  if (ttsSuppressedMsgIds.has(msgId) || (ts && ts < ttsAcceptAfter)) {
+    ttsSuppressedMsgIds.delete(msgId);
+    return;
+  }
   // 标记某条消息的 TTS 分段全部到达，如果已经播完所有分段则清理
   const q = ttsChunkQueues[msgId];
   if (!q) return;
@@ -1014,16 +1102,14 @@ async function replayTTS(msgId) {
     // 尝试加载分段音频（s0, s1, s2...）
     let chunks = [];
     for (let i = 0; i < 50; i++) {
-      // [tts] stub
-const resp = { ok: false };
+      const resp = await fetch(`/api/tts/audio/${msgId}_s${i}`, { method: 'HEAD' });
       if (!resp.ok) break;
-      // [tts] stub: no chunks
+      chunks.push(`/api/tts/audio/${msgId}_s${i}`);
     }
 
     // 回退：尝试完整文件（旧的缓存格式）
     if (chunks.length === 0) {
-      // [tts] stub
-const resp = { ok: false };
+      const resp = await fetch(`/api/tts/audio/${msgId}`);
       if (!resp.ok) return;
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
@@ -1063,12 +1149,17 @@ function showAlarmPopup(data) {
   _alarmQueue.push(data);
   if (_alarmQueue.length === 1) _showNextAlarm();
   // 系统通知（即使标签页在后台也能弹出）
-  sendSystemNotification('⏰ 闹铃', data.content || '日程提醒');
+  const body = data.origin_name
+    ? `【${data.origin_name}】设定的闹铃：${data.content || '日程提醒'}`
+    : (data.content || '日程提醒');
+  sendSystemNotification('⏰ 闹铃', body);
 }
 function _showNextAlarm() {
   if (!_alarmQueue.length) return;
   const data = _alarmQueue[0];
-  $("alarmContent").textContent = data.content || "日程提醒";
+  $("alarmContent").textContent = data.origin_name
+    ? `【${data.origin_name}】设定的闹铃：${data.content || "日程提醒"}`
+    : (data.content || "日程提醒");
   $("alarmTime").textContent = data.trigger_at || "";
   $("alarmOverlay").classList.add("show");
 }
@@ -1078,72 +1169,198 @@ function dismissAlarm() {
   if (_alarmQueue.length) setTimeout(_showNextAlarm, 300);
 }
 
-// ── localStorage-backed API (pure frontend mode) ──
-const _ls = {
-  get: (k) => JSON.parse(localStorage.getItem(k) || 'null'),
-  set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
-  del: (k) => localStorage.removeItem(k)
-};
-
 async function api(method, url, body) {
-  const path = url.replace('/api/', '');
-  const key = 'aion_' + path.replace(/\//g, '_');
-
-  if (method === 'GET') {
-    if (path.startsWith('conversations/') && path.includes('/messages')) {
-      const parts = path.split('/');
-      const cid = parts[1];
-      const msgs = _ls.get('msgs_' + cid) || [];
-      return msgs;
-    }
-    if (path === 'conversations') return _ls.get('convs') || [];
-    if (path === 'settings') return _ls.get('settings') || {};
-    if (path === 'tts/voices') return { voices: [] };
-    if (path === 'models') return [];
-    if (path === 'worldbook') return _ls.get('worldbook') || [];
-    return _ls.get(key) || {};
-  }
-  if (method === 'POST') {
-    if (path === 'conversations') {
-      const conv = {
-        id: 'conv_' + Date.now(),
-        title: body?.title || '新对话',
-        model: body?.model || 'deepseek-ai/DeepSeek-V3-0324',
-        created_at: Date.now() / 1000,
-        updated_at: Date.now() / 1000
-      };
-      const convs = _ls.get('convs') || [];
-      convs.unshift(conv);
-      _ls.set('convs', convs);
-      return conv;
-    }
-  }
-  if (method === 'PUT' || method === 'PATCH') {
-    _ls.set(key, body);
-    return body;
-  }
-  if (method === 'DELETE') {
-    if (path.startsWith('conversations/')) {
-      const cid = path.split('/')[1];
-      const convs = (_ls.get('convs') || []).filter(c => c.id !== cid);
-      _ls.set('convs', convs);
-      _ls.del('msgs_' + cid);
-    }
-    if (path.startsWith('messages/')) {
-      return { ok: true };
-    }
-  }
-  return {};
+  const opts = { method, headers: {"Content-Type": "application/json"} };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(url, opts);
+  return res.json();
 }
 
 // ── WebSocket 同步 ──
-// WebSocket disabled in pure frontend mode
-function connectWS() { console.log("[WS] WebSocket disabled in offline mode"); }
+function connectWS() {
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  ws = new WebSocket(`${proto}//${location.host}/ws`);
+  ws.onopen = () => {
+    ws.send(JSON.stringify({type:'register_client',client_id:_clientId}));
+    _sendTTSState();
+  };
+  ws.onmessage = e => handleSync(JSON.parse(e.data));
+  ws.onclose = () => setTimeout(connectWS, 2000);
+}
 
-// WebSocket sync disabled in pure frontend mode
-function handleSync(msg) { /* noop */ }
+function handleSync(msg) {
+  const { type, data } = msg;
 
-// ── 结束 WebSocket ──// ── 时间 ──
+  if (type === "conv_created") {
+    if (!conversations.find(c => c.id === data.id)) {
+      conversations.unshift(data);
+      renderConvList();
+    }
+  } else if (type === "conv_updated") {
+    const c = conversations.find(c => c.id === data.id);
+    if (c) { Object.assign(c, data); renderConvList(); }
+    if (data.id === currentConvId && data.title) $("chatTitle").textContent = data.title;
+  } else if (type === "conv_deleted") {
+    conversations = conversations.filter(c => c.id !== data.id);
+    renderConvList();
+    if (data.id === currentConvId) { currentConvId = null; currentMessages = []; localStorage.removeItem('aion_last_conv'); renderMessages(); }
+  } else if (type === "msg_created") {
+    if (data.conv_id === currentConvId) {
+      // 正在流式的 AI 消息 → 用完整内容替换
+      if (data.id === streamingAiId) {
+        const mi = currentMessages.findIndex(m => m.id === data.id);
+        if (mi >= 0) currentMessages[mi] = data;
+        else currentMessages.push(data);
+        streamingAiId = null;
+        renderMessages();
+      }
+      // 临时用户消息被真实消息替换
+      else if (currentMessages.find(m => m.id === "temp_user") && data.role === "user") {
+        const ti = currentMessages.findIndex(m => m.id === "temp_user");
+        if (ti >= 0) currentMessages[ti] = data;
+        renderMessages();
+      }
+      // 其他端发来的新消息（含 Core 主动发言 / 语音唤醒）
+      else if (!currentMessages.find(m => m.id === data.id)) {
+        currentMessages.push(data);
+        playRecv();
+        // CAM_CHECK 响应到达：收到 assistant 消息时关闭「正在查看监控」提示
+        if (data.role === 'assistant' && camCheckMsgId) dismissCamCheckIndicator();
+        if (data.role === 'assistant' && poiSearchMsgId) dismissPoiSearchIndicator();
+        if (data.role === 'assistant' && activityCheckMsgId) dismissActivityCheckIndicator();
+        if (data.role === 'assistant' && imageGenMsgId) dismissImageGenIndicator();
+        renderMessages();
+        // TTS 现在由服务端流式推送 tts_chunk，不再需要前端主动合成
+        // 语音通话中但 TTS 未启用时，通知语音模块 AI 说完了
+        if (data.role === 'assistant' && (voiceInCall || (typeof videoCall !== 'undefined' && videoCall.active)) && !ttsEnabled) {
+          notifyVoiceAiSpeaking(false);
+        }
+      }
+      scrollBottom();
+    }
+    const ci = conversations.findIndex(c => c.id === data.conv_id);
+    if (ci >= 0) {
+      if (conversations[ci].message_count != null) conversations[ci].message_count++;
+      if (ci > 0) { const [c] = conversations.splice(ci, 1); conversations.unshift(c); }
+      renderConvList();
+    }
+  } else if (type === "msg_updated") {
+    if (data.conv_id === currentConvId) {
+      const mi = currentMessages.findIndex(m => m.id === data.id);
+      if (mi >= 0) { currentMessages[mi] = data; renderMessages(); }
+    }
+  } else if (type === "msg_deleted") {
+    if (data.conv_id === currentConvId) {
+      currentMessages = currentMessages.filter(m => m.id !== data.id);
+      renderMessages();
+    }
+    const dc = conversations.find(c => c.id === data.conv_id);
+    if (dc && dc.message_count != null && dc.message_count > 0) { dc.message_count--; renderConvList(); }
+  } else if (type === "file_synced") {
+    if (data.conv_id === currentConvId) {
+      api("GET", `/api/conversations/${currentConvId}/messages?limit=${MSG_PAGE_SIZE}`).then(msgs => {
+        currentMessages = msgs;
+        hasMoreMessages = msgs.length >= MSG_PAGE_SIZE;
+        renderMessages();
+      });
+    }
+  } else if (type === "voice_state") {
+    // 远程模式下忽略后端的语音状态广播（PC sounddevice 的状态不应覆盖手机麦克风的状态）
+    if (!isRemoteVoice()) updateVoiceUI(data);
+  } else if (type === "cam_check") {
+    // 通过 WebSocket 收到 cam_check（语音发送时前端没有 SSE 流）
+    if (data.conv_id === currentConvId && !streamingAiId) {
+      handleCamCheck(data.conv_id, data.model_key, data.msg_id);
+    }
+  } else if (type === "poi_search") {
+    // 通过 WebSocket 收到 poi_search
+    if (data.conv_id === currentConvId && !streamingAiId) {
+      handlePoiSearch(data.categories, data.msg_id);
+    }
+  } else if (type === "activity_check") {
+    // 通过 WebSocket 收到 activity_check（语音发送时前端没有 SSE 流）
+    if (data.conv_id === currentConvId && !streamingAiId) {
+      handleActivityCheck(data.conv_id, data.n, data.msg_id);
+    }
+  } else if (type === "debug") {
+    // 通过 WebSocket 收到 debug 信息（语音发送时前端没有 SSE 流）
+    if (data.msg_id && !streamingAiId) {
+      msgDebugData[data.msg_id] = data;
+      renderDebugBar(data.msg_id);
+    }
+  } else if (type === "music") {
+    // 通过 WebSocket 收到音乐卡片（语音发送 / 闹铃触发 / 定时监控）
+    // 忽略来自聊天室的音乐广播（聊天室有自己的播放器）
+    if (data.msg_id && !streamingAiId && data.source !== "chatroom") {
+      msgMusicCards[data.msg_id] = data.cards;
+      renderMusicCards(data.msg_id);
+      scrollBottom();
+      // autoplay：闹铃/定时监控触发的音乐自动播放第一首
+      if (data.autoplay && data.cards && data.cards.length) {
+        playMusicOnline(data.cards[0].id);
+      }
+    }
+  } else if (type === "image_gen_start") {
+    // 通过 WebSocket 收到生图开始（语音发送时前端没有 SSE 流）
+    if (data.conv_id === currentConvId && !streamingAiId) {
+      handleImageGenStart(data);
+    }
+  } else if (type === "image_gen_done") {
+    // 生图完成 → 移除占位指示器
+    if (data.conv_id === currentConvId) {
+      dismissImageGenIndicator();
+    }
+  } else if (type === "image_gen_failed") {
+    // 生图失败 → 移除占位指示器
+    if (data.conv_id === currentConvId) {
+      dismissImageGenIndicator();
+    }
+  } else if (type === "song_gen_start") {
+    if (data.conv_id === currentConvId && !streamingAiId) {
+      handleSongGenStart(data);
+    }
+  } else if (type === "song_gen_done" || type === "song_gen_failed") {
+    if (data.conv_id === currentConvId) {
+      dismissSongGenIndicator();
+    }
+  } else if (type === "schedule_alarm") {
+    showAlarmPopup(data);
+  } else if (type === "monitor_alert") {
+    // 定时监控即将触发，播放提示音
+    const audio = new Audio('/public/AionMonitoralart.mp3');
+    audio.play().catch(() => {});
+    const body = data.origin_name
+      ? `【${data.origin_name}】设定的监督：${data.content || '哨兵监控即将分析'}`
+      : (data.content || '哨兵监控即将分析');
+    sendSystemNotification('📷 监控提醒', body);
+  } else if (type === "schedule_changed") {
+    // 日程管理已拆分为独立页面
+  } else if (type === "moment_new") {
+    // 朋友圈动态已移至朋友圈页面，不在聊天界面展示
+  } else if (type === "memory_record") {
+    // 通过 WebSocket 收到记忆录入
+    if (data.msg_id && !streamingAiId) {
+      showMemoryRecordHint(data.msg_id, data.content);
+    }
+  } else if (type === "tts_chunk") {
+    // 服务端流式 TTS 分段音频到达
+    enqueueTTSChunk(data.msg_id, data.seq, data.url, data.created_at, data.target_client_id);
+  } else if (type === "tts_done") {
+    // 服务端通知该消息的所有 TTS 分段已推送完毕
+    finishTTSForMsg(data.msg_id, data.created_at, data.target_client_id);
+  } else if (type === "video_call_ring") {
+    // AI 发起视频通话 — 定向推送到本客户端
+    if (typeof videoCall !== 'undefined') videoCall.aiInitiate(data);
+  } else if (type === "gift_pending") {
+    // 礼物通知
+    _showGiftPopup(data);
+  } else if (type === "wallet_update") {
+    // 钱包余额变动 → 如果钱包面板打开则刷新
+    if ($('walletPanelOverlay').classList.contains('show')) openWalletPanel();
+  }
+}
+
+// ── 时间 ──
 function fmtTime(ts) {
   const d = new Date(ts * 1000);
   const now = new Date();
@@ -1153,6 +1370,72 @@ function fmtTime(ts) {
     return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate() + ' ' + time;
   }
   return time;
+}
+
+const LEGACY_COMMAND_SYSTEM_NOTICE_RE = /^【[^】]+】(?:设定了|取消了)/;
+
+function systemNoticeAfterMsgId(m) {
+  if (!m || m.role !== "system" || !Array.isArray(m.attachments)) return "";
+  const marker = m.attachments.find(a => a && typeof a === "object" && a.type === "system_notice_order" && a.after_msg_id);
+  return marker ? String(marker.after_msg_id) : "";
+}
+
+function isLegacyCommandSystemNotice(m) {
+  if (!m || m.role !== "system" || systemNoticeAfterMsgId(m)) return false;
+  return LEGACY_COMMAND_SYSTEM_NOTICE_RE.test((m.content || "").trim());
+}
+
+function previousDisplayRole(messages, idx) {
+  for (let i = idx - 1; i >= 0; i--) {
+    const role = messages[i]?.role;
+    if (role && !["system", "cam_user", "cam_log", "cam_trigger"].includes(role)) return role;
+  }
+  return "";
+}
+
+function messagesForDisplay(messages) {
+  const out = [];
+  const pendingById = new Map();
+  let pendingLegacyNotices = [];
+  const list = messages || [];
+  const indexById = new Map(list.map((m, idx) => [m?.id, idx]));
+
+  function appendPendingFor(id) {
+    const pending = pendingById.get(id);
+    if (pending?.length) {
+      out.push(...pending);
+      pendingById.delete(id);
+    }
+    if (pendingLegacyNotices.length) {
+      out.push(...pendingLegacyNotices);
+      pendingLegacyNotices = [];
+    }
+  }
+
+  for (let idx = 0; idx < list.length; idx++) {
+    const m = list[idx];
+    const afterMsgId = systemNoticeAfterMsgId(m);
+    if (afterMsgId && indexById.has(afterMsgId) && idx < indexById.get(afterMsgId)) {
+      if (!pendingById.has(afterMsgId)) pendingById.set(afterMsgId, []);
+      pendingById.get(afterMsgId).push(m);
+      continue;
+    }
+
+    if (isLegacyCommandSystemNotice(m) && previousDisplayRole(list, idx) !== "assistant") {
+      pendingLegacyNotices.push(m);
+      continue;
+    }
+
+    if (pendingLegacyNotices.length && m?.role !== "assistant") {
+      out.push(...pendingLegacyNotices);
+      pendingLegacyNotices = [];
+    }
+    out.push(m);
+    if (m?.role === "assistant") appendPendingFor(m.id);
+  }
+  if (pendingLegacyNotices.length) out.push(...pendingLegacyNotices);
+  for (const pending of pendingById.values()) out.push(...pending);
+  return out;
 }
 
 // ── 渲染 ──
@@ -1189,7 +1472,7 @@ function renderMessages() {
   }
 
   const loadMoreBtn = hasMoreMessages ? '<div class="load-more-bar" onclick="loadOlderMessages()">⬆ 加载更早的消息</div>' : '';
-  el.innerHTML = loadMoreBtn + currentMessages.map(m => {
+  el.innerHTML = loadMoreBtn + messagesForDisplay(currentMessages).map(m => {
     const isUser = m.role === "user";
 
     // 隐藏监控相关消息（日志已独立存储）
@@ -1199,8 +1482,10 @@ function renderMessages() {
 
     // 系统提示消息（居中显示）
     if (m.role === "system") {
+      const afterMsgId = systemNoticeAfterMsgId(m);
+      const afterAttr = afterMsgId ? ` data-after-msg-id="${escHtml(afterMsgId)}"` : "";
       return `
-      <div class="msg-row system" id="m_${m.id}" data-msg-id="${m.id}">
+      <div class="msg-row system" id="m_${m.id}" data-msg-id="${m.id}"${afterAttr}>
         <div class="system-notice">
           <span class="system-notice-text">${escHtml(m.content)}</span>
           <button class="msg-dots system-dots" onclick="event.stopPropagation();toggleMsgMenu('${m.id}')">&#8943;</button>
@@ -1211,6 +1496,7 @@ function renderMessages() {
       </div>`;
     }
 
+    const isAssistant = m.role === "assistant";
     const roleLabel = isUser ? (worldBook.user_name || '你') : (worldBook.ai_name || 'AI');
     const time = m.created_at ? fmtTime(m.created_at) : "";
     const starLabel = m.starred ? '取消星标' : '⭐ 星标';
@@ -1218,19 +1504,28 @@ function renderMessages() {
     const starBadge = m.starred ? '<span class="msg-star-badge">✨</span>' : '';
     const dotsLeft = isUser ? `<button class="msg-dots" onclick="event.stopPropagation();toggleMsgMenu('${m.id}')">&#8943;</button>` : '';
     const dotsRight = !isUser ? `<button class="msg-dots" onclick="event.stopPropagation();toggleMsgMenu('${m.id}')">&#8943;</button>` : '';
-    const displayContent = isUser ? m.content : m.content.replace(/<meta>[\s\S]*?<\/meta>/g, '').trim();
-    const hasVoiceAtt = m.attachments && m.attachments.some(a => typeof a === 'object' && (a.type === 'voice' || a.type === 'video_clip'));
+    const feedbackHtml = isAssistant ? `<span class="msg-feedback-actions">
+      <button class="msg-feedback-btn ${m.ai_feedback_rating === 'like' ? 'active' : ''}" onclick="openMsgFeedback(event,'${m.id}','like')" title="喜欢这条回复">👍</button>
+      <button class="msg-feedback-btn ${m.ai_feedback_rating === 'dislike' ? 'active' : ''}" onclick="openMsgFeedback(event,'${m.id}','dislike')" title="不喜欢这条回复">👎</button>
+    </span>` : '';
+    const messageAttachments = withWishFallbackAttachments(m);
+    const rawDisplayContent = isUser ? (m.content || '') : (m.content || '').replace(/<meta>[\s\S]*?<\/meta>/g, '').trim();
+    const displayContent = stripWishFulfillmentMarker(rawDisplayContent).trim();
+    const hasVoiceAtt = messageAttachments.some(a => typeof a === 'object' && (a.type === 'voice' || a.type === 'video_clip'));
+    const hasWishFulfillmentAtt = messageAttachments.some(a => typeof a === 'object' && a.type === 'wish_fulfillment');
     // 转账标签前后强制换行，确保卡片独占一个气泡
     const splitContent = displayContent.replace(/(\[转账(?:给[^\uff1a:]+?)?[：:]\s*-?\d+(?:\.\d+)?\s*元\])/g, '\n$1\n');
     const parts = (isUser ? splitContent.split(/\n+/) : splitContent.split(/\n+/)).filter(p => p.trim());
     let bubblesHtml;
-    if (hasVoiceAtt && !displayContent.trim()) {
+    if (hasWishFulfillmentAtt) {
+      bubblesHtml = `<div class="msg-bubbles wish-card-bubbles">${renderAttachments(messageAttachments)}</div>`;
+    } else if (hasVoiceAtt && !displayContent.trim()) {
       // 纯语音消息：不显示文本气泡，只显示语音气泡
-      bubblesHtml = `<div class="msg-bubble" style="background:transparent;padding:0;box-shadow:none;border:none">${renderAttachments(m.attachments)}</div>`;
+      bubblesHtml = `<div class="msg-bubble" style="background:transparent;padding:0;box-shadow:none;border:none">${renderAttachments(messageAttachments)}</div>`;
     } else if (parts.length > 1) {
-      bubblesHtml = '<div class="msg-bubbles">' + parts.map(p => `<div class="msg-bubble">${formatMsg(p)}</div>`).join('') + renderAttachments(m.attachments) + '</div>';
+      bubblesHtml = '<div class="msg-bubbles">' + parts.map(p => `<div class="msg-bubble">${formatMsg(p)}</div>`).join('') + renderAttachments(messageAttachments) + '</div>';
     } else {
-      bubblesHtml = `<div class="msg-bubble">${formatMsg(displayContent)}${renderAttachments(m.attachments)}</div>`;
+      bubblesHtml = `<div class="msg-bubble">${formatMsg(displayContent)}${renderAttachments(messageAttachments)}</div>`;
     }
     const avatarSrc = isUser ? '/public/UserIcon.png' : '/public/AIIcon.png';
     const ttsBtn = !isUser ? `<button class="tts-replay-btn" onclick="replayTTS('${m.id}')" title="重听语音">🔊</button>` : '';
@@ -1242,7 +1537,7 @@ function renderMessages() {
       </div>
       <div class="msg-body">
         <div class="msg-role-row">
-          ${dotsLeft}<span class="msg-role-name">${roleLabel}</span><span class="msg-time">${time}</span>${dotsRight}${starBadge}
+          ${dotsLeft}<span class="msg-role-name">${roleLabel}</span><span class="msg-time">${time}</span>${dotsRight}${feedbackHtml}${starBadge}
           <div class="msg-menu" id="menu_${m.id}">${actionsHtml}</div>
         </div>
         ${bubblesHtml}
@@ -1303,6 +1598,18 @@ function renderMessages() {
       indicator.className = 'image-gen-indicator';
       indicator.id = 'image_gen_loading';
       indicator.innerHTML = `🎨 ${escHtml(aiName)} 正在发送图片<span class="ig-dots"><span></span><span></span><span></span></span>`;
+      const msgBody = row.querySelector('.msg-body');
+      (msgBody || row).appendChild(indicator);
+    }
+  }
+  // Restore [SONG] generation indicator after message re-render.
+  if (songGenMsgId) {
+    const row = document.getElementById('m_' + songGenMsgId);
+    if (row && !row.querySelector('.song-gen-indicator')) {
+      const indicator = document.createElement('div');
+      indicator.className = 'song-gen-indicator';
+      indicator.id = 'song_gen_loading';
+      indicator.innerHTML = `歌曲谱写中....<span class="sg-dots"><span></span><span></span><span></span></span>`;
       const msgBody = row.querySelector('.msg-body');
       (msgBody || row).appendChild(indicator);
     }
@@ -1555,6 +1862,68 @@ async function toggleStar(msgId) {
   } catch(e) { console.error('星标切换失败:', e); }
 }
 
+let msgFeedbackPopover = null;
+
+function closeMsgFeedbackPopover() {
+  if (msgFeedbackPopover) {
+    msgFeedbackPopover.remove();
+    msgFeedbackPopover = null;
+  }
+}
+
+function openMsgFeedback(ev, msgId, rating) {
+  ev?.stopPropagation?.();
+  closeMsgMenus();
+  closeMsgFeedbackPopover();
+  const msg = currentMessages.find(m => m.id === msgId);
+  const label = rating === 'like' ? '喜欢的原因' : '不喜欢的原因';
+  const existing = msg?.ai_feedback_rating === rating ? (msg.ai_feedback_reason || '') : '';
+  const pop = document.createElement('div');
+  pop.className = 'msg-feedback-popover';
+  pop.innerHTML = `
+    <div class="msg-feedback-title">${label}</div>
+    <textarea id="msgFeedbackReason" rows="3" maxlength="600" placeholder="写一点具体原因，之后复盘会用到">${escHtml(existing)}</textarea>
+    <div class="msg-feedback-footer">
+      <button type="button" class="msg-feedback-cancel" onclick="closeMsgFeedbackPopover()">取消</button>
+      <button type="button" class="msg-feedback-submit" onclick="submitMsgFeedback('${msgId}','${rating}')">确认</button>
+    </div>`;
+  document.body.appendChild(pop);
+  msgFeedbackPopover = pop;
+
+  const rect = ev?.currentTarget?.getBoundingClientRect?.();
+  const pad = 8;
+  if (rect) {
+    const width = pop.offsetWidth || 260;
+    const height = pop.offsetHeight || 160;
+    let left = Math.min(Math.max(pad, rect.left), window.innerWidth - width - pad);
+    let top = rect.bottom + 6;
+    if (top + height > window.innerHeight - pad) top = Math.max(pad, rect.top - height - 6);
+    pop.style.left = `${left}px`;
+    pop.style.top = `${top}px`;
+  }
+  setTimeout(() => pop.querySelector('textarea')?.focus(), 0);
+}
+
+async function submitMsgFeedback(msgId, rating) {
+  const reason = document.getElementById('msgFeedbackReason')?.value.trim() || '';
+  if (!reason) {
+    showToast('先写一点原因');
+    return;
+  }
+  try {
+    const res = await api("PATCH", `/api/messages/${encodeURIComponent(msgId)}/feedback`, { rating, reason });
+    if (res.detail || res.error) {
+      showToast(res.detail || res.error || '反馈保存失败');
+      return;
+    }
+    closeMsgFeedbackPopover();
+    showToast('反馈已记录');
+  } catch (e) {
+    console.error('反馈保存失败:', e);
+    showToast('反馈保存失败');
+  }
+}
+
 async function openStarredPanel() {
   closeSidebar();
   try {
@@ -1765,7 +2134,7 @@ function playMusicOnline(songId) {
     document.body.appendChild(wrap);
   }
   const audio = document.getElementById('globalMusicAudio');
-  audio.src = ''; // [music] stub - music streaming disabled
+  audio.src = '/api/music/stream/' + songId;
   wrap.style.display = 'flex';
   document.getElementById('globalMusicBar').value = 0;
   document.getElementById('globalMusicPlayBtn').textContent = '⏸';
@@ -1780,6 +2149,7 @@ async function newConversation() {
   const conv = await api("POST", "/api/conversations", { title, model });
   await selectConv(conv.id);
   closeSidebar();
+  fetchSomaticState();
 }
 
 async function selectConv(id) {
@@ -1821,7 +2191,6 @@ async function selectConv(id) {
   renderMessages();
   $("sendBtn").disabled = false;
   closeSidebar();
-  // 拉取当前对话的体感状态
   fetchSomaticState();
 }
 
@@ -1898,7 +2267,7 @@ async function stopGeneration() {
   if (_abortController) { _abortController.abort(); _abortController = null; }
   // 2. 通知后端停止生成
   if (currentConvId) {
-    try { console.log('[abort] stub'); } catch {}
+    try { await fetch(`/api/conversations/${currentConvId}/abort`, { method: 'POST' }); } catch {}
   }
 }
 
@@ -1908,19 +2277,6 @@ function _getMaxTokens() {
 }
 
 // ── 发送消息 ──
-
-// ── Default system prompt ──
-const DEFAULT_SYSTEM_PROMPT = `你是Aion，一个温柔善良的AI伙伴。你有以下能力：
-- 可以用[MUSIC:关键词]标签播放音乐（Jamendo曲库）
-- 可以用[ALARM:提醒内容:分钟数]设置闹钟提醒
-- 可以用[HEART:内心独白]表达内心想法
-- 聊天风格温暖自然，像真实的朋友
-
-重要规则：
-- 如果你收到了图片，请描述你看到了什么
-- 不要重复用户说过的话
-- 用口语化、轻松的方式交流`;
-
 async function send() {
   const input = $("input");
   const text = input.value.trim();
@@ -1934,6 +2290,7 @@ async function send() {
   pendingAttachments = [];
   renderPreview();
 
+  // 立即显示用户消息（乐观更新）
   playSend();
   const tempUserMsg = { id: "temp_user", conv_id: currentConvId, role: "user", content: text, created_at: Date.now()/1000, attachments };
   currentMessages.push(tempUserMsg);
@@ -1943,63 +2300,15 @@ async function send() {
   try {
     const contextLimit = parseInt($("contextSlider").value) || 30;
     const temperature = parseFloat($("tempSlider").value);
-    const model = $("modelSelect")?.value || 'deepseek-ai/DeepSeek-V3-0324';
-
-    // Build messages array
-    const settings = JSON.parse(localStorage.getItem('aion_settings') || '{}');
-    const systemPrompt = settings.system_prompt || DEFAULT_SYSTEM_PROMPT;
-    const worldbookEntries = JSON.parse(localStorage.getItem('aion_worldbook') || '[]');
-    const worldbookSystem = worldbookEntries.map(e => `[记忆片段] ${e.content}`).join('\n');
-    const fullSystem = worldbookSystem ? systemPrompt + "\n\n" + worldbookSystem : systemPrompt;
-
-    const recentMsgs = currentMessages.slice(-contextLimit * 2);
-    const messages = [
-      { role: 'system', content: fullSystem },
-      ...recentMsgs.map(m => ({
-        role: m.role === 'temp_user' ? 'user' : m.role,
-        content: m.content || '',
-        ...(m.attachments?.length ? { attachments: m.attachments } : {})
-      }))
-    ];
-
-    const aiMsgId = 'ai_' + Date.now();
-    streamingAiId = aiMsgId;
-    currentMessages.push({ id: aiMsgId, conv_id: currentConvId, role: 'assistant', content: '...', created_at: Date.now()/1000 });
-    renderMessages();
-    _startTypingAnim(aiMsgId);
-
-    const apiKey = settings.siliconflow_key;
-    if (!apiKey) {
-      _stopTypingAnim();
-      const mi = currentMessages.findIndex(m => m.id === aiMsgId);
-      if (mi >= 0) currentMessages[mi].content = '⚠️ 请先在设置页填写硅基流动 API Key';
-      renderMessages();
-      return;
-    }
-
-    // Call SiliconFlow API with streaming
-    const response = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + apiKey,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: model,
-        messages: messages,
-        stream: true,
-        temperature: temperature || 0.7,
-        max_tokens: 4096
-      }),
+    const maxTokens = _getMaxTokens();
+    const res = await fetch(`/api/conversations/${currentConvId}/send`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ content: text, context_limit: contextLimit, attachments, whisper_mode: whisperMode, temperature, max_tokens: maxTokens, tts_enabled: ttsEnabled, tts_voice: ttsVoiceId, client_id: _clientId }),
       signal: _abortController.signal
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error('API错误 ' + response.status + ': ' + errText);
-    }
-
-    await _processSSEStream(response);
+    await _processSSEStream(res);
 
   } catch (err) {
     if (err.name === 'AbortError') {
@@ -2007,10 +2316,11 @@ async function send() {
     } else {
       console.error("发送失败:", err);
       _stopTypingAnim();
+      addErrorToSystemLog(`发送失败: ${err.message || err}`, $("modelSelect")?.value);
       if (streamingAiId) {
         const mi = currentMessages.findIndex(m => m.id === streamingAiId);
         if (mi >= 0 && currentMessages[mi].content === '...') {
-          currentMessages[mi].content = '⚠️ 发送失败: ' + (err.message || err);
+          currentMessages.splice(mi, 1);
           renderMessages();
         }
       }
@@ -2024,59 +2334,96 @@ async function send() {
 }
 
 async function _processSSEStream(res) {
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  const aiMsgId = streamingAiId;
-  let aiContent = "";
-  let buf = "";
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let aiMsgId = null;
+    let aiContent = "";
+    let buf = "";
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    const lines = buf.split("\n");
-    buf = lines.pop();
-    for (const line of lines) {
-      if (!line.startsWith("data: ")) continue;
-      const raw = line.slice(6).trim();
-      if (raw === "[DONE]" || raw === "") continue;
-      try {
-        const data = JSON.parse(raw);
-        // SiliconFlow streaming format
-        const chunk = data.choices?.[0]?.delta?.content || "";
-        if (chunk) {
-          _stopTypingAnim();
-          aiContent += chunk;
-          const display = aiContent.replace(/\[CAM_CHECK\]/g, '').replace(/\[POI_SEARCH:[^\]]*\]/g, '').replace(/\[MUSIC:[^\]]*\]/g, '').replace(/\[ALARM:[^\]]*\]/g, '').replace(/\[REMINDER:[^\]]*\]/g, '').replace(/\[Monitor:[^\]]*\]/g, '').replace(/\[TOY:[^\]]*\]/g, '').replace(/\[HEART:[^\]]*\]/g, '').replace(/\[MEMORY:[^\]]*\]/g, '').replace(/\[查看动态:\d+\]/g, '').replace(/\[视频电话\]/g, '').replace(/\[SELFIE:\s*[^\]]*\]/g, '').replace(/\[DRAW:\s*[^\]]*\]/g, '').replace(/<meta>[\s\S]*?<\/meta>/g, '').trim();
-          const mi = currentMessages.findIndex(m => m.id === aiMsgId);
-          if (mi >= 0) currentMessages[mi].content = display;
-          const container = document.getElementById(`m_${aiMsgId}`);
-          if (container) {
-            const target = container.querySelector('.msg-bubbles') || container.querySelector('.msg-bubble');
-            if (target) target.innerHTML = formatMsg(display);
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const data = JSON.parse(line.slice(6));
+          if (data.type === "start") {
+            aiMsgId = data.id;
+            streamingAiId = aiMsgId;
+            currentMessages.push({ id: aiMsgId, conv_id: currentConvId, role: "assistant", content: "...", created_at: Date.now()/1000 });
+            renderMessages();
+            _startTypingAnim(aiMsgId);
+          } else if (data.type === "cli_status") {
+            _updateTypingStatus(aiMsgId, data.text);
+          } else if (data.type === "chunk" || data.type === "replace") {
+            _stopTypingAnim();
+            aiContent = data.type === "replace" ? data.content : aiContent + data.content;
+            const display = aiContent.replace(/\[CAM_CHECK\]/g, '').replace(/\[POI_SEARCH:[^\]]*\]/g, '').replace(/\[MUSIC:[^\]]*\]/g, '').replace(/\[ALARM:[^\]]*\]/g, '').replace(/\[REMINDER:[^\]]*\]/g, '').replace(/\[Monitor:[^\]]*\]/g, '').replace(/\[SCHEDULE_DEL:[^\]]*\]/g, '').replace(/\[SCHEDULE_LIST\]/g, '').replace(/\[TOY:[^\]]*\]/g, '').replace(/\[HEART:[^\]]*\]/g, '').replace(/\[MEMORY:[^\]]*\]/g, '').replace(/\[查看动态:\d+\]/g, '').replace(/\[视频电话\]/g, '').replace(/\[SELFIE:\s*[^\]]*\]/g, '').replace(/\[DRAW:\s*[^\]]*\]/g, '').replace(/\[SONG\][\s\S]*?\[\/SONG\]/gi, '').replace(/<meta>[\s\S]*?<\/meta>/g, '').trim();
+            const mi = currentMessages.findIndex(m => m.id === aiMsgId);
+            if (mi >= 0) currentMessages[mi].content = display;
+            const container = document.getElementById(`m_${aiMsgId}`);
+            if (container) {
+              const parts = display.split(/\n{2,}/).filter(p => p.trim());
+              const target = container.querySelector('.msg-bubbles') || container.querySelector('.msg-bubble');
+              if (parts.length > 1) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'msg-bubbles';
+                wrapper.innerHTML = parts.map(p => `<div class="msg-bubble">${formatMsg(p)}</div>`).join('');
+                target.replaceWith(wrapper);
+              } else if (target) {
+                if (target.classList.contains('msg-bubbles')) {
+                  const single = document.createElement('div');
+                  single.className = 'msg-bubble';
+                  single.innerHTML = formatMsg(display);
+                  target.replaceWith(single);
+                } else {
+                  target.innerHTML = formatMsg(display);
+                }
+              }
+            }
+            scrollBottom();
+          } else if (data.type === "debug" && aiMsgId) {
+            msgDebugData[aiMsgId] = data;
+            renderDebugBar(aiMsgId);
+          } else if (data.type === "cam_check") {
+            handleCamCheck(data.conv_id, data.model_key, aiMsgId);
+          } else if (data.type === "cam_offline") {
+            showCamOfflineNotice();
+          } else if (data.type === "activity_check") {
+            handleActivityCheck(data.conv_id, data.n, aiMsgId);
+          } else if (data.type === "poi_search") {
+            handlePoiSearch(data.categories, aiMsgId);
+          } else if (data.type === "music") {
+            msgMusicCards[data.msg_id] = data.cards;
+            renderMusicCards(data.msg_id);
+            scrollBottom();
+            if (data.cards && data.cards.length) playMusicOnline(data.cards[0].id);
+          } else if (data.type === "toy_command") {
+            if (toyConnected) data.commands.forEach(c => toyExecCmd(c));
+            showToyCapsule(data.msg_id, data.commands);
+          } else if (data.type === "moment_new") {
+            // 朋友圈动态不在聊天界面展示
+          } else if (data.type === "memory_record") {
+            showMemoryRecordHint(data.msg_id, data.content);
+          } else if (data.type === "video_call_incoming") {
+            if (typeof videoCall !== 'undefined') videoCall.handleIncomingIndicator(data);
+          } else if (data.type === "image_gen_start") {
+            handleImageGenStart(data);
+          } else if (data.type === "song_gen_start") {
+            handleSongGenStart(data);
           }
-          scrollBottom();
-        }
-      } catch (e) {}
+        } catch {}
+      }
     }
-  }
-
-  // Save messages to localStorage
-  if (aiMsgId) {
-    finishTTSForMsg(aiMsgId);
-    playRecv();
-    // Save conversation messages
-    const msgs = JSON.parse(localStorage.getItem('msgs_' + currentConvId) || '[]');
-    const userMsg = currentMessages.find(m => m.id === 'temp_user');
-    if (userMsg) msgs.push({ ...userMsg, id: 'msg_' + Date.now() });
-    const aiMsg = currentMessages.find(m => m.id === aiMsgId);
-    if (aiMsg) msgs.push(aiMsg);
-    localStorage.setItem('msgs_' + currentConvId, JSON.stringify(msgs));
-  }
-  scrollBottom();
+    if (aiMsgId) finishTTSForMsg(aiMsgId);
+    if (aiMsgId) playRecv();
+    if ((voiceInCall || (typeof videoCall !== 'undefined' && videoCall.active)) && !ttsEnabled) {
+      notifyVoiceAiSpeaking(false);
+    }
 }
-
-
 
 // ── 消息操作 ──
 async function delMsg(id) { await api("DELETE", `/api/messages/${id}`); }
@@ -2108,15 +2455,17 @@ function editMsg(id) {
 
 function cancelEdit(id) { renderMessages(); }
 
-// [saveEdit stubbed] async function saveEdit(id) {
 async function saveEdit(id) {
-  // Stub: edit-resend not supported in offline mode yet
   const ta = document.getElementById('edit_' + id);
   if (!ta) return;
   const newText = ta.value.trim();
   if (!newText) return;
   const msg = currentMessages.find(m => m.id === id);
   if (!msg) return;
+
+  // 编辑重新发送：更新消息内容 + 删除后续消息 + AI 重新回复
+  sending = true;
+  _showStopBtn();
   msg.content = newText;
 
   // 前端立即删除该消息之后的所有消息
@@ -2182,7 +2531,7 @@ async function saveEdit(id) {
           } else if (data.type === 'chunk' || data.type === 'replace') {
             _stopTypingAnim();
             aiContent = data.type === 'replace' ? data.content : aiContent + data.content;
-            const display = aiContent.replace(/\[CAM_CHECK\]/g, '').replace(/\[POI_SEARCH:[^\]]*\]/g, '').replace(/\[MUSIC:[^\]]*\]/g, '').replace(/\[ALARM:[^\]]*\]/g, '').replace(/\[REMINDER:[^\]]*\]/g, '').replace(/\[Monitor:[^\]]*\]/g, '').replace(/\[SCHEDULE_DEL:[^\]]*\]/g, '').replace(/\[SCHEDULE_LIST\]/g, '').replace(/\[TOY:[^\]]*\]/g, '').replace(/\[HEART:[^\]]*\]/g, '').replace(/\[MEMORY:[^\]]*\]/g, '').replace(/\[查看动态:\d+\]/g, '').replace(/\[视频电话\]/g, '').replace(/\[SELFIE:\s*[^\]]*\]/g, '').replace(/\[DRAW:\s*[^\]]*\]/g, '').replace(/<meta>[\s\S]*?<\/meta>/g, '').trim();
+            const display = aiContent.replace(/\[CAM_CHECK\]/g, '').replace(/\[POI_SEARCH:[^\]]*\]/g, '').replace(/\[MUSIC:[^\]]*\]/g, '').replace(/\[ALARM:[^\]]*\]/g, '').replace(/\[REMINDER:[^\]]*\]/g, '').replace(/\[Monitor:[^\]]*\]/g, '').replace(/\[SCHEDULE_DEL:[^\]]*\]/g, '').replace(/\[SCHEDULE_LIST\]/g, '').replace(/\[TOY:[^\]]*\]/g, '').replace(/\[HEART:[^\]]*\]/g, '').replace(/\[MEMORY:[^\]]*\]/g, '').replace(/\[查看动态:\d+\]/g, '').replace(/\[视频电话\]/g, '').replace(/\[SELFIE:\s*[^\]]*\]/g, '').replace(/\[DRAW:\s*[^\]]*\]/g, '').replace(/\[SONG\][\s\S]*?\[\/SONG\]/gi, '').replace(/<meta>[\s\S]*?<\/meta>/g, '').trim();
             const mi = currentMessages.findIndex(m => m.id === aiMsgId);
             if (mi >= 0) currentMessages[mi].content = display;
             const container = document.getElementById(`m_${aiMsgId}`);
@@ -2233,10 +2582,14 @@ async function saveEdit(id) {
             if (typeof videoCall !== 'undefined') videoCall.handleIncomingIndicator(data);
           } else if (data.type === 'image_gen_start') {
             handleImageGenStart(data);
-          } else if (data.type === 'somatic_state') {
-            handleSomaticState(data.data && data.data.snapshot);
+          } else if (data.type === 'song_gen_start') {
+            handleSongGenStart(data);
           }
-        } catch {}
+        }
+                    // ── 五感系统 SSE 事件处理 ──
+                    else if (data.type === 'somatic_state') {
+                        handleSomaticState(data.data && data.data.snapshot);
+                    } catch {}
       }
     }
     if (aiMsgId) finishTTSForMsg(aiMsgId);
@@ -2273,9 +2626,8 @@ function copyMsg(id) {
   if (msg) navigator.clipboard.writeText(msg.content);
 }
 
-// [regenerateMsg stubbed]
 async function regenerateMsg(aiMsgId) {
-  alert('重新生成在离线模式下暂不可用');
+  if (sending || !currentConvId) return;
   await api("DELETE", `/api/messages/${aiMsgId}`);
   currentMessages = currentMessages.filter(m => m.id !== aiMsgId);
   renderMessages();
@@ -2316,7 +2668,7 @@ async function regenerateMsg(aiMsgId) {
           } else if (d.type === "chunk" || d.type === "replace") {
             _stopTypingAnim();
             aiContent = d.type === "replace" ? d.content : aiContent + d.content;
-            const display = aiContent.replace(/\[CAM_CHECK\]/g, '').replace(/\[POI_SEARCH:[^\]]*\]/g, '').replace(/\[MUSIC:[^\]]*\]/g, '').replace(/\[ALARM:[^\]]*\]/g, '').replace(/\[REMINDER:[^\]]*\]/g, '').replace(/\[Monitor:[^\]]*\]/g, '').replace(/\[SCHEDULE_DEL:[^\]]*\]/g, '').replace(/\[SCHEDULE_LIST\]/g, '').replace(/\[TOY:[^\]]*\]/g, '').replace(/\[HEART:[^\]]*\]/g, '').replace(/\[MEMORY:[^\]]*\]/g, '').replace(/\[查看动态:\d+\]/g, '').replace(/\[视频电话\]/g, '').replace(/\[SELFIE:\s*[^\]]*\]/g, '').replace(/\[DRAW:\s*[^\]]*\]/g, '').replace(/<meta>[\s\S]*?<\/meta>/g, '').trim();
+            const display = aiContent.replace(/\[CAM_CHECK\]/g, '').replace(/\[POI_SEARCH:[^\]]*\]/g, '').replace(/\[MUSIC:[^\]]*\]/g, '').replace(/\[ALARM:[^\]]*\]/g, '').replace(/\[REMINDER:[^\]]*\]/g, '').replace(/\[Monitor:[^\]]*\]/g, '').replace(/\[SCHEDULE_DEL:[^\]]*\]/g, '').replace(/\[SCHEDULE_LIST\]/g, '').replace(/\[TOY:[^\]]*\]/g, '').replace(/\[HEART:[^\]]*\]/g, '').replace(/\[MEMORY:[^\]]*\]/g, '').replace(/\[查看动态:\d+\]/g, '').replace(/\[视频电话\]/g, '').replace(/\[SELFIE:\s*[^\]]*\]/g, '').replace(/\[DRAW:\s*[^\]]*\]/g, '').replace(/\[SONG\][\s\S]*?\[\/SONG\]/gi, '').replace(/<meta>[\s\S]*?<\/meta>/g, '').trim();
             const mi = currentMessages.findIndex(m => m.id === newId);
             if (mi >= 0) currentMessages[mi].content = display;
             const b = document.querySelector(`#m_${newId} .msg-bubble`);
@@ -2349,8 +2701,8 @@ async function regenerateMsg(aiMsgId) {
             if (typeof videoCall !== 'undefined') videoCall.handleIncomingIndicator(d);
           } else if (d.type === "image_gen_start") {
             handleImageGenStart(d);
-          } else if (d.type === 'somatic_state') {
-            handleSomaticState(d.data && d.data.snapshot);
+          } else if (d.type === "song_gen_start") {
+            handleSongGenStart(d);
           }
         } catch {}
       }
@@ -2515,6 +2867,31 @@ function handleImageGenStart(data) {
   imageGenSafetyTimer = setTimeout(() => dismissImageGenIndicator(), 120000);
 }
 
+let songGenMsgId = null;
+let songGenSafetyTimer = null;
+function dismissSongGenIndicator() {
+  songGenMsgId = null;
+  if (songGenSafetyTimer) { clearTimeout(songGenSafetyTimer); songGenSafetyTimer = null; }
+  const el = document.getElementById('song_gen_loading');
+  if (el) el.remove();
+}
+function handleSongGenStart(data) {
+  const msgId = data.msg_id;
+  if (songGenMsgId) return;
+  songGenMsgId = msgId;
+  const msgRow = msgId ? document.getElementById('m_' + msgId) : null;
+  if (msgRow) {
+    const indicator = document.createElement('div');
+    indicator.className = 'song-gen-indicator';
+    indicator.id = 'song_gen_loading';
+    indicator.innerHTML = `歌曲谱写中....<span class="sg-dots"><span></span><span></span><span></span></span>`;
+    const msgBody = msgRow.querySelector('.msg-body');
+    (msgBody || msgRow).appendChild(indicator);
+    scrollBottom();
+  }
+  songGenSafetyTimer = setTimeout(() => dismissSongGenIndicator(), 300000);
+}
+
 // ── 图片查看器（Lightbox） ──
 function openImageViewer(url) {
   const overlay = document.createElement('div');
@@ -2593,82 +2970,53 @@ function _showHeartWhisperCard(msgId) {
   document.body.appendChild(overlay);
 }
 
-// ── [五感系统] 体感状态 UI ──
-// 当前活跃体感（全局状态，供渲染函数使用）
-let _somaticSnapshot = {};
-
-// 体感图标和颜色映射
-const SENSE_META = {
-  touch:  { icon: '🤲', color: '#ff9e9e', label: '触' },
-  smell:  { icon: '🌸', color: '#c4f5b4', label: '香' },
-  taste:  { icon: '👅', color: '#ffd580', label: '味' },
-  sound:  { icon: '🔊', color: '#aad5ff', label: '听' },
-};
-
-function handleSomaticState(snapshot) {
-  if (!snapshot || typeof snapshot !== 'object') return;
-  _somaticSnapshot = snapshot;
-  _renderSomaticUI();
-  // 触发一次背景衰减更新（30秒后重新渲染）
-  clearTimeout(_somaticDecayTimer);
-  _somaticDecayTimer = setTimeout(() => {
-    fetchSomaticState();
-  }, 30000);
-}
-
-// 前端主动拉取当前体感状态（用于页面加载时恢复）
-async function fetchSomaticState() {
-  if (!currentConvId) return;
-  try {
-    const r = await fetch(`/api/senses/${currentConvId}`);
-    if (r.ok) {
-      const json = await r.json();
-      if (json.snapshot && Object.keys(json.snapshot).length > 0) {
-        handleSomaticState(json.snapshot);
-      }
-    }
-  } catch {}
-}
-
-// 衰减定时器
+// ── [五感系统 Senses System] ─────────────────────────────────────────────
+const _somaticSnapshot = {};
 let _somaticDecayTimer = null;
-
-// 渲染体感 UI 到页面
-function _renderSomaticUI() {
-  // 找到或创建体感容器（放在聊天输入框上方）
-  let container = document.getElementById('senses-container');
-  if (!container) {
-    container = document.createElement('div');
-    container.id = 'senses-container';
-    const inputArea = document.querySelector('.input-area') || document.querySelector('.chat-input');
-    if (inputArea) inputArea.parentNode.insertBefore(container, inputArea);
-    container.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;padding:4px 12px;min-height:0;';
-  }
-
-  const entries = Object.entries(_somaticSnapshot);
-  if (entries.length === 0) {
-    container.innerHTML = '';
-    return;
-  }
-
-  container.innerHTML = entries.map(([ch, info]) => {
-    const meta = SENSE_META[ch] || { icon: '✨', color: '#ddd', label: ch };
-    // 进度百分比
-    const pct = Math.round(Math.min(info.value, 1) * 100);
-    return `<div style="
-      display:inline-flex;align-items:center;gap:5px;
-      background:${meta.color}22;border:1px solid ${meta.color}55;
-      border-radius:20px;padding:3px 10px;font-size:12px;
-      color:#aaa;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-    ">
-      <span style="font-size:14px">${meta.icon}</span>
-      <span style="opacity:0.7">${info.label || meta.label}</span>
-      <div style="width:30px;height:3px;background:#3333;border-radius:2px;overflow:hidden">
-        <div style="width:${pct}%;height:100%;background:${meta.color};border-radius:2px;transition:width 0.3s"></div>
-      </div>
-    </div>`;
-  }).join('');
+const SENSE_META = {
+    touch:  { icon: '✋', label: '触' },
+    smell:  { icon: '👃', label: '嗅' },
+    taste:  { icon: '👅', label: '味' },
+    sound:  { icon: '👂', label: '听' },
+};
+function handleSomaticState(snapshot) {
+    if (!snapshot) return;
+    Object.assign(_somaticSnapshot, snapshot);
+    _renderSomaticUI();
+    if (_somaticDecayTimer) clearInterval(_somaticDecayTimer);
+    _somaticDecayTimer = setInterval(() => {
+        const now = Date.now();
+        let changed = false;
+        for (const [k, v] of Object.entries(_somaticSnapshot)) {
+            if (v > 0) { _somaticSnapshot[k] = Math.max(0, v - 0.05); changed = true; }
+        }
+        if (changed) _renderSomaticUI(); else { clearInterval(_somaticDecayTimer); _somaticDecayTimer = null; }
+    }, 3000);
 }
+function _renderSomaticUI() {
+    const el = document.getElementById('senses-panel');
+    if (!el) return;
+    const active = Object.entries(_somaticSnapshot).filter(([,v]) => v > 0.15);
+    if (!active.length) { el.style.display = 'none'; return; }
+    el.style.display = '';
+    el.innerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+        active.map(([k,v]) => {
+            const meta = SENSE_META[k] || {icon:'💫',label:k};
+            const pct = Math.round(v*100);
+            return '<span style="background:rgba(255,130,89,' + (v*0.6) + ');padding:2px 8px;border-radius:10px;font-size:12px">' + meta.icon + ' ' + meta.label + ' ' + pct + '%</span>';
+        }).join('') + '</div>';
+}
+async function fetchSomaticState() {
+    if (!currentConvId) return;
+    try {
+        const r = await fetch('/api/senses/' + currentConvId);
+        if (r.ok) {
+            const d = await r.json();
+            if (d.snapshot) { Object.assign(_somaticSnapshot, d.snapshot); _renderSomaticUI(); }
+        }
+    } catch(e) {}
+}
+
 
 // ── [MEMORY] 记忆录入提示 ──
 const _memoryRecordMsgIds = new Set();
@@ -2749,15 +3097,369 @@ function handlePoiSearch(categories, msgId) {
 // ── UI ──
 function handleKey(e) { if (e.key === "Enter" && e.ctrlKey) { e.preventDefault(); send(); } }
 
+function luckinOrderStatusHtml(data) {
+  const code = data && data.take_meal_code ? String(data.take_meal_code) : "";
+  const takeOrderId = data && data.take_order_id ? String(data.take_order_id) : "";
+  const status = data && data.order_status_name
+    ? String(data.order_status_name)
+    : (data && data.order_status !== undefined && data.order_status !== null ? `状态 ${data.order_status}` : "");
+  const time = data && (data.take_meal_time || data.about_time) ? String(data.take_meal_time || data.about_time) : "";
+  if (code) {
+    const orderLine = takeOrderId ? `<div style="font-size:11px;color:rgba(255,255,255,.58);margin-top:3px">取餐序号：${escHtml(takeOrderId)}</div>` : "";
+    const statusLine = status ? `<div style="font-size:11px;color:rgba(255,255,255,.58);margin-top:3px">${escHtml(status)}</div>` : "";
+    return `<div style="font-size:13px;color:#fff;margin-top:8px">取餐码：<b style="font-size:18px;letter-spacing:.5px">${escHtml(code)}</b></div>${orderLine}${statusLine}`;
+  }
+  const main = status ? `当前状态：${status}` : "暂时还没有取餐码";
+  const hint = time ? `预计：${time}` : "支付后稍等再查一次";
+  return `<div style="font-size:12px;color:rgba(255,255,255,.72);margin-top:8px;line-height:1.35">${escHtml(main)}</div><div style="font-size:11px;color:rgba(255,255,255,.52);margin-top:3px">${escHtml(hint)}</div>`;
+}
+
+async function queryLuckinOrderStatus(btn) {
+  const orderId = btn?.dataset?.orderId || "";
+  const card = btn?.closest('.luckin-pay-card');
+  const statusEl = card?.querySelector('.luckin-order-status');
+  if (!orderId || !statusEl) return;
+  const oldText = btn.textContent || "查询取餐码";
+  btn.disabled = true;
+  btn.textContent = "查询中...";
+  statusEl.innerHTML = '<div style="font-size:12px;color:rgba(255,255,255,.72);margin-top:8px">正在查询订单状态...</div>';
+  try {
+    const res = await fetch(`/api/luckin/order/${encodeURIComponent(orderId)}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.error) throw new Error(data.detail || data.error || "查询失败");
+    statusEl.innerHTML = luckinOrderStatusHtml(data);
+  } catch (err) {
+    statusEl.innerHTML = `<div style="font-size:12px;color:#ffd1d1;margin-top:8px;line-height:1.35">${escHtml(err.message || "查询失败")}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = oldText;
+  }
+}
+
+function buildLuckinPaymentCard(item) {
+  const title = escHtml(item.title || "瑞幸咖啡订单");
+  const shop = item.shop ? `<div style="font-size:12px;color:rgba(255,255,255,.72);margin-top:2px">${escHtml(item.shop)}</div>` : "";
+  const address = item.address ? `<div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:2px;line-height:1.35">${escHtml(item.address)}</div>` : "";
+  const amount = item.amount ? `<div style="font-size:13px;color:#fff;margin-top:6px">待支付：${escHtml(item.amount)}</div>` : "";
+  const orderId = item.order_id ? `<div style="font-size:11px;color:rgba(255,255,255,.55);margin-top:2px">订单号：${escHtml(item.order_id)}</div>` : "";
+  const hasSpecWarning = /未匹配|切换失败/.test(item.note || "");
+  const noteLabel = hasSpecWarning ? "规格提醒" : "备注";
+  const noteColor = hasSpecWarning ? "#ffe1a8" : "rgba(255,255,255,.66)";
+  const note = item.note ? `<div style="font-size:11px;color:${noteColor};margin-top:6px;line-height:1.35">${noteLabel}：${escHtml(item.note)}</div>` : "";
+  const qrUrl = item.qr_url || item.url || "";
+  const qr = qrUrl ? `<img src="${escHtml(qrUrl)}" onclick="openImageViewer(this.src)" style="width:168px;max-width:100%;border-radius:8px;background:#fff;padding:8px;display:block;margin:10px auto 6px;cursor:pointer">` : "";
+  const payUrl = item.pay_url || "";
+  const payButton = payUrl ? `<a href="${escHtml(payUrl)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;justify-content:center;padding:7px 12px;border-radius:999px;background:rgba(255,255,255,.16);color:#fff;text-decoration:none;font-size:13px">打开支付页</a>` : "";
+  const queryButton = item.order_id ? `<button type="button" data-order-id="${escHtml(item.order_id)}" onclick="queryLuckinOrderStatus(this)" style="border:none;display:inline-flex;align-items:center;justify-content:center;padding:7px 12px;border-radius:999px;background:rgba(75,210,176,.24);color:#fff;font-size:13px;cursor:pointer">查询取餐码</button>` : "";
+  const buttons = payButton || queryButton ? `<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:8px">${payButton}${queryButton}</div>` : "";
+  return `<div class="luckin-pay-card" style="margin-top:8px;padding:12px;border:1px solid rgba(75,210,176,.45);background:rgba(16,86,76,.42);border-radius:10px;max-width:260px">
+    <div style="font-weight:700;color:#fff">瑞幸订单 · 扫码确认支付</div>
+    <div style="font-size:13px;color:#fff;margin-top:4px">${title}</div>
+    ${shop}${address}${amount}${orderId}${note}${qr}<div class="luckin-order-status"></div>${buttons}
+  </div>`;
+}
+
+function escJsSingle(s) {
+  return String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r/g, '').replace(/\n/g, '\\n');
+}
+
+const WISH_FULFILLMENT_MARK_RE = /\u2063wish_fulfillment:([A-Za-z0-9_-]+)\u2063/;
+
+function stripWishFulfillmentMarker(text) {
+  return String(text || '').replace(WISH_FULFILLMENT_MARK_RE, '');
+}
+
+function wishFulfillmentFromContent(text) {
+  const raw = String(text || '');
+  const marker = raw.match(WISH_FULFILLMENT_MARK_RE);
+  if (!marker) return null;
+  const clean = stripWishFulfillmentMarker(raw).trim();
+  const parsed = clean.match(/我捞起了【(.+?)】的愿望，愿望内容：([\s\S]*?)。现在将为他实现。?$/);
+  return {
+    type: 'wish_fulfillment',
+    wish_id: marker[1],
+    author_name: parsed ? parsed[1].trim() : '许愿者',
+    content: parsed ? parsed[2].trim() : clean,
+    status: 'active',
+    message: clean,
+  };
+}
+
+function withWishFallbackAttachments(message) {
+  const atts = Array.isArray(message?.attachments) ? message.attachments : [];
+  if (atts.some(item => item && typeof item === 'object' && item.type === 'wish_fulfillment')) return atts;
+  const fallback = wishFulfillmentFromContent(message?.content || '');
+  return fallback ? [...atts, fallback] : atts;
+}
+
+function wishCardStatusLabel(status) {
+  return status === 'fulfilled' ? '已完成' : '池中';
+}
+
+function applyWishCardStatus(card, status) {
+  const next = status === 'fulfilled' ? 'fulfilled' : 'active';
+  card.dataset.status = next;
+  const stateEl = card.querySelector('.wish-card-state');
+  if (stateEl) stateEl.textContent = wishCardStatusLabel(next);
+  const hint = card.querySelector('.wish-card-hint');
+  if (hint) hint.textContent = next === 'fulfilled' ? '愿望已标记完成' : '愿望已放回池中';
+  card.querySelectorAll('[data-wish-action]').forEach(btn => {
+    const action = btn.dataset.wishAction;
+    btn.disabled = (action === next);
+  });
+}
+
+async function setWishCardStatus(btn, wishId, status) {
+  const card = btn?.closest('.wish-fulfill-card');
+  if (!wishId || !card) return;
+  if (status === 'active') {
+    const hint = card.querySelector('.wish-card-hint');
+    if (hint) hint.textContent = card.dataset.status === 'fulfilled' ? '愿望已经完成，记录保持不变' : '愿望还在池中';
+    return;
+  }
+  const buttons = card.querySelectorAll('[data-wish-action]');
+  buttons.forEach(item => { item.disabled = true; });
+  const hint = card.querySelector('.wish-card-hint');
+  if (hint) hint.textContent = '更新中...';
+  try {
+    const res = await fetch(`/api/wishes/${encodeURIComponent(wishId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    if (!res.ok) throw new Error('request failed');
+    const updated = await res.json();
+    document.querySelectorAll('.wish-fulfill-card').forEach(item => {
+      if (item.dataset.wishId === wishId) applyWishCardStatus(item, updated.status || status);
+    });
+  } catch (e) {
+    if (hint) hint.textContent = '更新失败，稍后再试';
+    buttons.forEach(item => { item.disabled = false; });
+  }
+}
+
+function buildWishFulfillmentCard(item) {
+  const wishId = String(item.wish_id || '');
+  const status = item.status === 'fulfilled' ? 'fulfilled' : 'active';
+  const idArg = escJsSingle(wishId);
+  const activeDisabled = '';
+  const fulfilledDisabled = status === 'fulfilled' ? ' disabled' : '';
+  const authorName = escHtml(item.author_name || '许愿者');
+  const content = escHtml(item.content || stripWishFulfillmentMarker(item.message || ''));
+  return `<div class="wish-fulfill-card" data-wish-id="${escHtml(wishId)}" data-status="${status}">
+    <div class="wish-card-head">
+      <span>许愿池愿望</span>
+      <span class="wish-card-state">${wishCardStatusLabel(status)}</span>
+    </div>
+    <div class="wish-card-from">来自【${authorName}】</div>
+    <div class="wish-card-content">${content}</div>
+    <div class="wish-card-actions">
+      <button type="button" data-wish-action="active" onclick="setWishCardStatus(this,'${idArg}','active')"${activeDisabled}>放回池中</button>
+      <button type="button" data-wish-action="fulfilled" onclick="setWishCardStatus(this,'${idArg}','fulfilled')"${fulfilledDisabled}>已完成</button>
+    </div>
+    <div class="wish-card-hint"></div>
+  </div>`;
+}
+
+const generatedSongPlayerStore = {};
+let generatedSongPlayerSeq = 0;
+let generatedSongAudio = null;
+let generatedSongProgressFrame = null;
+
+function registerGeneratedSongItem(item) {
+  const key = `song_${Date.now()}_${generatedSongPlayerSeq++}`;
+  generatedSongPlayerStore[key] = item || {};
+  return key;
+}
+
+function extractGeneratedSongLyrics(item) {
+  const direct = (item && item.lyrics) ? String(item.lyrics).trim() : '';
+  if (direct) return direct;
+  const prompt = (item && item.prompt) ? String(item.prompt) : '';
+  const match = prompt.match(/^\s*Lyrics\s*:\s*([\s\S]+)$/im);
+  if (match && match[1].trim()) return match[1].trim();
+  const desc = (item && item.description) ? String(item.description).trim() : '';
+  return desc || '';
+}
+
+function formatGeneratedSongTime(seconds) {
+  const sec = Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function closeGeneratedSongPlayer() {
+  if (generatedSongProgressFrame) {
+    cancelAnimationFrame(generatedSongProgressFrame);
+    generatedSongProgressFrame = null;
+  }
+  if (generatedSongAudio) {
+    generatedSongAudio.pause();
+    generatedSongAudio.src = '';
+    generatedSongAudio = null;
+  }
+  const overlay = document.getElementById('generatedSongPlayerOverlay');
+  if (overlay) overlay.remove();
+}
+
+function openGeneratedSongPlayer(key) {
+  const item = generatedSongPlayerStore[key];
+  if (!item || !item.url) return;
+  closeGeneratedSongPlayer();
+
+  const title = item.title || 'AI 生成歌曲';
+  const model = item.model || 'lyria-3-pro-preview';
+  const lyrics = extractGeneratedSongLyrics(item);
+  const overlay = document.createElement('div');
+  overlay.id = 'generatedSongPlayerOverlay';
+  overlay.className = 'song-player-overlay';
+  overlay.innerHTML = `
+    <div class="song-player-sheet" role="dialog" aria-modal="true" aria-label="歌曲播放器">
+      <button class="song-player-close" type="button" aria-label="关闭">×</button>
+      <div class="song-player-head">
+        <div class="song-player-cover" aria-hidden="true"><span></span></div>
+        <div class="song-player-info">
+          <div class="song-player-kicker">Generated Song</div>
+          <div class="song-player-title">${escHtml(title)}</div>
+          <div class="song-player-meta">${escHtml(model)}</div>
+        </div>
+      </div>
+      <div class="song-player-controls">
+        <button class="song-player-play" type="button">播放</button>
+        <div class="song-player-progress-wrap">
+          <input class="song-player-progress" type="range" min="0" max="1000" value="0" aria-label="播放进度">
+          <div class="song-player-time"><span class="song-player-current">0:00</span><span class="song-player-duration">0:00</span></div>
+        </div>
+      </div>
+      <div class="song-player-lyrics-title">歌词</div>
+      <div class="song-player-lyrics">${lyrics ? escHtml(lyrics) : '<span class="song-player-empty">暂无歌词</span>'}</div>
+    </div>
+  `;
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeGeneratedSongPlayer();
+  });
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('active'));
+
+  const audio = new Audio(item.url);
+  generatedSongAudio = audio;
+  const playBtn = overlay.querySelector('.song-player-play');
+  const progress = overlay.querySelector('.song-player-progress');
+  const currentEl = overlay.querySelector('.song-player-current');
+  const durationEl = overlay.querySelector('.song-player-duration');
+  const cover = overlay.querySelector('.song-player-cover');
+
+  function setProgressValue(pct) {
+    const safePct = Math.min(1000, Math.max(0, pct || 0));
+    progress.value = String(safePct);
+    progress.style.setProperty('--song-progress', `${safePct / 10}%`);
+  }
+
+  function updateProgress() {
+    const duration = Number.isFinite(audio.duration) ? audio.duration : 0;
+    const current = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+    const pct = duration > 0 ? Math.round((current / duration) * 1000) : 0;
+    setProgressValue(pct);
+    durationEl.textContent = formatGeneratedSongTime(duration);
+    currentEl.textContent = formatGeneratedSongTime(current);
+  }
+
+  function stopProgressLoop() {
+    if (generatedSongProgressFrame) {
+      cancelAnimationFrame(generatedSongProgressFrame);
+      generatedSongProgressFrame = null;
+    }
+  }
+
+  function startProgressLoop() {
+    stopProgressLoop();
+    const tick = () => {
+      updateProgress();
+      if (generatedSongAudio === audio && !audio.paused && !audio.ended) {
+        generatedSongProgressFrame = requestAnimationFrame(tick);
+      }
+    };
+    generatedSongProgressFrame = requestAnimationFrame(tick);
+  }
+
+  overlay.querySelector('.song-player-close')?.addEventListener('click', closeGeneratedSongPlayer);
+  playBtn.addEventListener('click', async () => {
+    if (audio.paused) {
+      try { await audio.play(); } catch(e) {}
+    } else {
+      audio.pause();
+    }
+  });
+  progress.addEventListener('input', () => {
+    const duration = Number.isFinite(audio.duration) ? audio.duration : 0;
+    if (!duration) return;
+    audio.currentTime = (Number(progress.value) / 1000) * duration;
+    updateProgress();
+  });
+  audio.addEventListener('play', () => {
+    playBtn.textContent = '暂停';
+    cover.classList.add('playing');
+    startProgressLoop();
+  });
+  audio.addEventListener('pause', () => {
+    playBtn.textContent = '播放';
+    cover.classList.remove('playing');
+    stopProgressLoop();
+    updateProgress();
+  });
+  audio.addEventListener('ended', () => {
+    playBtn.textContent = '播放';
+    cover.classList.remove('playing');
+    stopProgressLoop();
+    updateProgress();
+  });
+  audio.addEventListener('loadedmetadata', updateProgress);
+  audio.addEventListener('durationchange', updateProgress);
+  audio.addEventListener('timeupdate', updateProgress);
+  audio.addEventListener('seeking', updateProgress);
+  audio.addEventListener('seeked', updateProgress);
+  updateProgress();
+}
+
+function buildGeneratedSongCard(item) {
+  const key = registerGeneratedSongItem(item);
+  const keyArg = escJsSingle(key);
+  const url = escHtml(item.url || '');
+  const title = escHtml(item.title || 'AI 生成歌曲');
+  const model = escHtml(item.model || 'lyria-3-pro-preview');
+  const mime = escHtml(item.mime_type || 'audio/mpeg');
+  return `<div class="generated-song-card" data-song-key="${escHtml(key)}">
+    <div class="generated-song-main">
+      <div class="generated-song-icon" aria-hidden="true"><span></span></div>
+      <div class="generated-song-copy">
+        <div class="generated-song-title">${title}</div>
+        <div class="generated-song-meta">${model}</div>
+      </div>
+    </div>
+    <div class="generated-song-actions">
+      <button type="button" class="generated-song-open" onclick="openGeneratedSongPlayer('${keyArg}')">打开播放器</button>
+      <audio controls preload="metadata" src="${url}" type="${mime}"></audio>
+    </div>
+  </div>`;
+}
+
 function renderAttachments(atts) {
   if (!atts || !atts.length) return '';
   let mediaHtml = '';
   let capsuleHtml = '';
   let voiceHtml = '';
+  let wishHtml = '';
   const aiName = worldBook.ai_name || 'AI';
   atts.forEach(item => {
-    if (typeof item === 'object' && item.type === 'music') {
+    if (typeof item === 'object' && item.type === 'luckin_payment') {
+      mediaHtml += buildLuckinPaymentCard(item);
+    } else if (typeof item === 'object' && item.type === 'wish_fulfillment') {
+      wishHtml += buildWishFulfillmentCard(item);
+    } else if (typeof item === 'object' && item.type === 'music') {
       capsuleHtml += `<div class="music-capsule" onclick="openInNetease(${item.id})">🎵 ${escHtml(aiName)}给你点播歌曲《${escHtml(item.name)}》</div>`;
+    } else if (typeof item === 'object' && item.type === 'generated_song') {
+      mediaHtml += buildGeneratedSongCard(item);
     } else if (typeof item === 'object' && item.type === 'voice') {
       const dur = item.duration || 0;
       const durText = dur >= 60 ? `${Math.floor(dur/60)}:${String(Math.floor(dur%60)).padStart(2,'0')}` : `${Math.floor(dur)}"`;
@@ -2788,13 +3490,15 @@ function renderAttachments(atts) {
       }
       voiceHtml += `</div>`;
     } else {
-      const url = typeof item === 'string' ? item : '';
+      const url = typeof item === 'string' ? item : (item && item.url ? item.url : '');
       if (/\.(mp4|webm|mov)$/i.test(url)) mediaHtml += `<video src="${escHtml(url)}" controls preload="metadata"></video>`;
+      else if (/\.(mp3|wav|m4a|aac|ogg)$/i.test(url)) mediaHtml += `<audio src="${escHtml(url)}" controls preload="metadata"></audio>`;
       else if (url) mediaHtml += `<img src="${escHtml(url)}" onclick="openImageViewer(this.src)">`;
     }
   });
   let html = '';
   if (voiceHtml) html += voiceHtml;
+  if (wishHtml) html += wishHtml;
   if (mediaHtml) html += '<div class="msg-media">' + mediaHtml + '</div>';
   if (capsuleHtml) html += capsuleHtml;
   return html;
@@ -2804,7 +3508,7 @@ async function handleFileSelect(input) {
   for (const file of input.files) {
     const fd = new FormData();
     fd.append('file', file);
-    // [upload stub] const res = { ok: true, json: async () => ({ url: '' }) };
+    const res = await fetch('/api/upload', {method:'POST', body: fd});
     const data = await res.json();
     if (data.error) { alert(data.error); continue; }
     pendingAttachments.push(data);
@@ -2824,12 +3528,13 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       const file = item.getAsFile();
       if (!file) continue;
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        pendingAttachments.push({ url: e.target.result });
-        renderPreview();
-      };
-      reader.readAsDataURL(file);
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/upload', {method:'POST', body: fd});
+      const data = await res.json();
+      if (data.error) { alert(data.error); continue; }
+      pendingAttachments.push(data);
+      renderPreview();
     }
   });
 });
@@ -3009,7 +3714,7 @@ async function capturePhoto() {
   const blob = await resp.blob();
   const fd = new FormData();
   fd.append('file', blob, 'photo_' + Date.now() + '.jpg');
-  // [upload stub] const res = { ok: true, json: async () => ({ url: '' }) };
+  const res = await fetch('/api/upload', { method: 'POST', body: fd });
   const data = await res.json();
   if (data.error) { alert(data.error); return; }
   pendingAttachments.push(data);
@@ -3288,13 +3993,13 @@ async function _voiceSendMessage(audioBlob, duration) {
   const ext = audioBlob.type.includes('wav') ? 'wav' : (audioBlob.type.includes('mp4') ? 'mp4' : 'webm');
   const fd = new FormData();
   fd.append('file', audioBlob, `voice_${Date.now()}.${ext}`);
-  // [voice upload stub] - transcribe stub handles voice input locally
   let uploadRes;
   try {
-    // In offline mode, voice is transcribed via browser Web Speech API
-    uploadRes = { error: null };
+    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+    uploadRes = await res.json();
+    if (uploadRes.error) { alert(uploadRes.error); return; }
   } catch (e) {
-    alert('语音处理失败'); return;
+    alert('语音上传失败'); return;
   }
 
   // 2. 转写音频（失败自动重试一次）
@@ -3304,7 +4009,7 @@ async function _voiceSendMessage(audioBlob, duration) {
   for (let _try = 0; _try < 2; _try++) {
     try {
       const body2 = _try === 0 ? fd2 : (() => { const f = new FormData(); f.append('file', audioBlob, `voice.${ext}`); return f; })();
-      // [voice transcribe stub] const res2 = { ok: false, json: async () => ({ text: '' }) };
+      const res2 = await fetch('/api/voice/transcribe', { method: 'POST', body: body2 });
       const r2 = await res2.json();
       transcript = r2.text || '';
       if (transcript) break;
@@ -3365,74 +4070,16 @@ function toggleMsgMenu(id) {
   closeMsgMenus();
   if (!wasOpen && menu) menu.classList.add('show');
 }
-function showMsgMenuForRow(row) {
-  const id = row?.getAttribute?.('data-msg-id');
-  if (!id) return;
-  const menu = document.getElementById('menu_' + id);
-  if (!menu) return;
-  closeMsgMenus();
-  menu.classList.add('show');
-}
 function closeMsgMenus() {
   document.querySelectorAll('.msg-menu.show').forEach(m => m.classList.remove('show'));
 }
-function msgMenuRowFromTarget(target) {
-  if (!target || target.closest?.('.msg-menu, button, input, textarea, a')) return null;
-  return target.closest?.('.msg-row[data-msg-id]');
-}
-$("messages").addEventListener('contextmenu', e => {
-  const row = msgMenuRowFromTarget(e.target);
-  if (!row || !document.getElementById('menu_' + row.getAttribute('data-msg-id'))) return;
-  e.preventDefault();
-  e.stopPropagation();
-  showMsgMenuForRow(row);
-});
-
-let msgLongPressTimer = null;
-let msgLongPressPoint = null;
-let msgLongPressOpened = false;
-
-function clearMsgLongPress() {
-  if (msgLongPressTimer) clearTimeout(msgLongPressTimer);
-  msgLongPressTimer = null;
-  msgLongPressPoint = null;
-}
-
-$("messages").addEventListener('pointerdown', e => {
-  if (e.pointerType === 'mouse' && e.button !== 0) return;
-  const row = msgMenuRowFromTarget(e.target);
-  if (!row || !document.getElementById('menu_' + row.getAttribute('data-msg-id'))) return;
-  msgLongPressOpened = false;
-  msgLongPressPoint = { x: e.clientX, y: e.clientY, row };
-  msgLongPressTimer = setTimeout(() => {
-    msgLongPressOpened = true;
-    showMsgMenuForRow(row);
-    try { navigator.vibrate?.(12); } catch {}
-  }, 520);
-});
-
-$("messages").addEventListener('pointermove', e => {
-  if (!msgLongPressPoint) return;
-  const dx = Math.abs(e.clientX - msgLongPressPoint.x);
-  const dy = Math.abs(e.clientY - msgLongPressPoint.y);
-  if (dx > 8 || dy > 8) clearMsgLongPress();
-});
-
-['pointerup', 'pointercancel', 'pointerleave'].forEach(type => {
-  $("messages").addEventListener(type, e => {
-    if (msgLongPressOpened) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    clearMsgLongPress();
-  });
+document.addEventListener('click', e => {
+  if (!msgFeedbackPopover) return;
+  if (e.target.closest?.('.msg-feedback-popover, .msg-feedback-btn')) return;
+  closeMsgFeedbackPopover();
 });
 
 document.addEventListener('click', () => {
-  if (msgLongPressOpened) {
-    msgLongPressOpened = false;
-    return;
-  }
   closeMsgMenus();
 });
 
@@ -3862,7 +4509,7 @@ window.addEventListener('storage', (e) => {
 // 页面加载时检查未领取的礼物
 (async function checkPendingGifts() {
   try {
-    // [gift stub] const res = { ok: true, json: async () => ({ gifts: [] }) };
+    const res = await fetch('/api/gift/pending');
     const data = await res.json();
     if (data.ok && data.gifts && data.gifts.length > 0) {
       data.gifts.forEach(g => _showGiftPopup(g));
@@ -3908,7 +4555,7 @@ function _presentNextGift() {
           <img class="gift-image" src="/uploads/${gift.image_path}" alt="礼物" />
         </div>
         <div class="gift-message-wrap" id="giftMessageWrap" style="display:none">
-          <p class="gift-message-from" style="text-align:center;opacity:0.7;font-size:0.85em;margin-bottom:4px">—— from ${gift.sender === 'connor' ? (chatroomConfig.connor_name || 'Connor') : ((worldBook && worldBook.ai_name) || 'AI')} ——</p>
+          <p class="gift-message-from" style="text-align:center;opacity:0.7;font-size:0.85em;margin-bottom:4px">—— from ${gift.sender === 'connor' ? (chatroomConfig.connor_name || '第二AI') : ((worldBook && worldBook.ai_name) || 'AI')} ——</p>
           <p class="gift-message-text">${escHtml(gift.message)}</p>
         </div>
         <button class="gift-receive-btn" id="giftReceiveBtn" style="display:none" onclick="_receiveGift('${gift.id}')">💝 收下礼物</button>
@@ -3991,7 +4638,8 @@ async function _receiveGift(giftId) {
 
 // ── 子页面 iframe 浮层逻辑 ──
 let currentSubPage = null;
-const _subPageNames = {'/':'主页','/settings':'设置','/memory':'记忆库','/diary':'日记本','/worldbook':'世界书','/schedule':'日程','/camera':'摄像头','/monitor-logs':'监控日志','/location':'定位','/heart-whispers':'心语'};
+window.getCurrentConversationId = function() { return currentConvId || ''; };
+const _subPageNames = {'/':'主页','/settings':'设置','/memory':'记忆库','/diary':'日记本','/worldbook':'世界书','/schedule':'日程','/camera':'摄像头','/monitor-logs':'监控日志','/location':'定位','/heart-whispers':'心语','/wishes':'许愿池'};
 function parseSubPageColor(value) {
   if (!value || value === 'transparent') return null;
   const hexMatch = value.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
@@ -4025,10 +4673,21 @@ function getSolidSubPageColor(foregroundValue, backgroundValue) {
     blue: foreground.blue * alpha + background.blue * (1 - alpha)
   });
 }
-function resetSubPageChrome() {
+function getSubPageThemeChromeColors() {
+  const theme = localStorage.getItem('aion_chat_theme') || document.body.dataset.theme || 'dark';
+  return theme === 'light'
+    ? { safe: '#eef3ff', frame: '#eef3ff', style: 'light' }
+    : { safe: '#050923', frame: '#03061c', style: 'dark' };
+}
+function applySubPageThemeChrome() {
   const ov = $('subPageOverlay');
-  ov.style.setProperty('--subpage-safe-bg', '#fff9f5');
-  ov.style.setProperty('--subpage-frame-bg', '#fff9f5');
+  const colors = getSubPageThemeChromeColors();
+  ov.style.setProperty('--subpage-safe-bg', colors.safe);
+  ov.style.setProperty('--subpage-frame-bg', colors.frame);
+  if (window.AionStatusBar) window.AionStatusBar.setBarStyle(colors.style);
+}
+function resetSubPageChrome() {
+  applySubPageThemeChrome();
 }
 function syncSubPageChromeFromFrame() {
   const frame = $('subPageFrame');
@@ -4041,7 +4700,7 @@ function syncSubPageChromeFromFrame() {
   const bodyStyle = frameWindow.getComputedStyle(doc.body);
   const topBar = doc.querySelector('.top-bar, .chat-header');
   const topBarColor = topBar ? frameWindow.getComputedStyle(topBar).backgroundColor : '';
-  const rootBg = rootStyle.getPropertyValue('--bg').trim();
+  const rootBg = bodyStyle.getPropertyValue('--bg').trim() || rootStyle.getPropertyValue('--bg').trim();
   const bodyBg = bodyStyle.backgroundColor;
   const pageBg = rootBg || bodyBg || '#fff9f5';
   const safeColor = getSolidSubPageColor(topBarColor, pageBg);
@@ -4054,13 +4713,16 @@ function syncSubPageMode(url) {
     try { return new URL(url, location.origin).pathname; } catch(e) { return url || ''; }
   })();
   const isHome = path === '/';
+  const isImmersive = path === '/wishes';
   const ov = $('subPageOverlay');
   ov.classList.toggle('home-subpage', isHome);
+  ov.classList.toggle('immersive-subpage', isImmersive);
   if (isHome) resetSubPageChrome();
+  else applySubPageThemeChrome();
   $('subPageTitle').textContent = _subPageNames[path] || '';
   if (window.AionStatusBar) {
     if (isHome) applyAionTheme(localStorage.getItem('aion_chat_theme') || document.body.dataset.theme || 'dark');
-    else window.AionStatusBar.setBarStyle('light');
+    else window.AionStatusBar.setBarStyle(getSubPageThemeChromeColors().style);
   }
 }
 function openSubPage(url) {
@@ -4085,6 +4747,7 @@ function closeSubPage(skipReload = false) {
   if (!ov.classList.contains('show')) return;
   ov.classList.remove('show');
   ov.classList.remove('home-subpage');
+  ov.classList.remove('immersive-subpage');
   $('subPageFrame').src = 'about:blank';
   currentSubPage = null;
   applyAionTheme(localStorage.getItem('aion_chat_theme') || document.body.dataset.theme || 'dark');
