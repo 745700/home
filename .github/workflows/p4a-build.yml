@@ -1,10 +1,10 @@
-name: Build All-in-one APK
+name: Test Termux Python APK
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,51 +19,147 @@ jobs:
         run: |
           mkdir -p android-sdk/cmdline-tools
           cd android-sdk/cmdline-tools
-          curl -s --max-time 180 -L \
+          curl -s --max-time 120 -L \
             "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" \
             -o cmdline-tools.zip
-          unzip -q cmdline-tools.zip
-          mv cmdline-tools latest
-
-      - name: Install NDK and SDK
-        run: |
-          export ANDROID_HOME=$PWD/android-sdk
+          unzip -q cmdline-tools.zip && mv cmdline-tools latest
+          export ANDROID_HOME=$PWD/..
           export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
           yes | sdkmanager --licenses > /dev/null 2>&1 || true
-          sdkmanager "ndk;25b" "platform-tools" "platforms;android-34" "build-tools;34.0.0" 2>&1 | tail -3
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" 2>&1 | tail -3
 
-      - name: Install python-for-android
+      - name: Download Termux Python
         run: |
-          pip3 install python-for-android 2>&1 | tail -2
-
-      - name: Build APK
-        run: |
-          export ANDROID_HOME=$PWD/android-sdk
-          export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25b
-          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+          echo "=== Download Termux Python deb ==="
+          curl -s --max-time 60 -L \
+            "https://packages.termux.dev/apt/termux-main/pool/main/p/python/python_3.13.13-1_aarch64.deb" \
+            -o /tmp/python.deb
+          ls -lh /tmp/python.deb
+          file /tmp/python.deb
+          
+          echo "=== Extract deb ==="
           cd /tmp
-          rm -rf aionapp_p4a && mkdir -p aionapp_p4a
-          cd aionapp_p4a
-          mkdir -p app/src/main/python
-          echo 'print("Aion backend starting...")' > app/src/main/python/main.py
-          cat > build.yml << 'YML'
-appname: AionBackend
-package: com.aion.backend
-version: 1.0.0
-requirements:
-  - python3
-  - fastapi
-  - uvicorn
-  - httpx
-  - aiosqlite
-  - pydantic
-  - pillow
-  - aiofiles
-  - websockets
-  - python-multipart
-  - jinja2
-  - fsspec
-bootstrap: sdl2
-YML
-          echo "=== Build ==="
-          python3 -m pythonforandroid.toolchain create --dist_name=aionapp --bootstrap=sdl2 aionapp 2>&1 | tail -30
+          mkdir -p python_extracted
+          dpkg-deb -x /tmp/python.deb /tmp/python_extracted/
+          find /tmp/python_extracted/ -name "python*" -o -name "libpython*" | head -10
+          ls /tmp/python_extracted/usr/bin/ | head -10
+
+      - name: Download Python packages
+        run: |
+          echo "=== Install pip packages to a local dir ==="
+          pip3 install \
+            fastapi uvicorn httpx aiosqlite pydantic pillow aiofiles \
+            websockets python-multipart jinja2 fsspec jiter \
+            2>&1 | tail -5
+          
+          echo "=== Pack packages to tar.gz ==="
+          pip3 bundle -r /tmp/requirements.txt /tmp/python_packages.tar.gz 2>&1 || \
+          pip3 install --target=/tmp/pypackages fsspec jinja2 aiofiles websockets python-multipart jiter 2>&1 | tail -3
+          
+          echo "Packages dir:"
+          ls /tmp/pypackages/ 2>/dev/null | head -10
+
+      - name: Create APK project
+        run: |
+          echo "=== Create Android project ==="
+          mkdir -p /tmp/testapk
+          cd /tmp/testapk
+          
+          # Download Gradle
+          curl -s --max-time 60 -L \
+            "https://services.gradle.org/distributions/gradle-8.4-bin.zip" \
+            -o gradle.zip
+          unzip -q gradle.zip
+          export PATH=$PATH:/tmp/testapk/gradle-8.4/bin
+          gradle --version | head -3
+          
+          # Create settings.gradle
+          echo 'rootProject.name = "AionPython"' > settings.gradle
+          
+          # Create build.gradle
+          cat > build.gradle << 'GROOVY'
+          plugins { id 'com.android.application' version '8.2.0' }
+          android {
+              namespace "com.aion.chat"
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.aion.chat"
+                  minSdk 24
+                  targetSdk 34
+                  ndk { abiFilters 'arm64-v8a' }
+              }
+              compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17; }
+          }
+          dependencies {}
+          GROOVY
+          
+          mkdir -p app/src/main/assets/python
+          mkdir -p app/src/main/java/com/aion/chat
+          
+          # Copy Python binary
+          cp /tmp/python_extracted/usr/bin/python3 /tmp/testapk/app/src/main/assets/python/ 2>/dev/null || echo "No python3 bin"
+          ls /tmp/python_extracted/usr/bin/ | grep python
+          
+          # Copy libpython
+          find /tmp/python_extracted/ -name "libpython*" -exec cp {} /tmp/testapk/app/src/main/assets/python/ \; 2>/dev/null || true
+          
+          # Copy pip packages
+          cp -r /tmp/pypackages /tmp/testapk/app/src/main/assets/python/lib/python3.13/site-packages/ 2>/dev/null || true
+          
+          ls /tmp/testapk/app/src/main/assets/python/ | head -10
+          
+          # Create MainActivity.java to start Python
+          cat > /tmp/testapk/app/src/main/java/com/aion/chat/MainActivity.java << 'JAVA'
+package com.aion.chat;
+import android.app.Activity;
+import android.os.Bundle;
+import android.widget.TextView;
+import java.io.*;
+public class MainActivity extends Activity {
+    @Override protected void onCreate(Bundle b) {
+        super.onCreate(b);
+        TextView tv = new TextView(this);
+        tv.setText("Testing Termux Python in APK");
+        setContentView(tv);
+        
+        // Test Python extraction and execution
+        File pythonDir = getDir("python", 0);
+        File pythonBin = new File(pythonDir, "python3");
+        if (!pythonBin.exists()) {
+            // Extract python binary from assets
+            try {
+                File assetFile = new File(getAssets().open("python/python3"));
+                assetFile.copyTo(pythonBin);
+            } catch (Exception e) { tv.append("\nError: " + e.getMessage()); }
+        }
+        tv.append("\nPython dir: " + pythonDir.getAbsolutePath());
+        tv.append("\nPython exists: " + pythonBin.exists());
+        
+        // Test running Python
+        try {
+            ProcessBuilder pb = new ProcessBuilder(pythonBin.getAbsolutePath(), "-c", "import sys; print(sys.version); print('Hello from APK Python!')");
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
+            String line;
+            while ((line = br.readLine()) != null) { tv.append("\n" + line); }
+            int exit = p.waitFor();
+            tv.append("\nExit: " + exit);
+        } catch (Exception e) { tv.append("\nExec error: " + e.getMessage()); }
+    }
+}
+JAVA
+          
+          # Create AndroidManifest
+          cat > /tmp/testapk/app/src/main/AndroidManifest.xml << 'XML'
+<manifest package="com.aion.chat"/>
+XML
+          
+          mkdir -p gradle/wrapper
+          echo "distributionBase=GRADLE_USER_HOME" > gradle/wrapper/gradle-wrapper.properties
+          echo "distributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-bin.zip" >> gradle/wrapper/gradle-wrapper.properties
+          
+          # Build APK
+          export ANDROID_HOME=/tmp/testapk/android-sdk
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+          /tmp/testapk/gradle-8.4/bin/gradle assembleDebug --no-daemon 2>&1 | tail -20
