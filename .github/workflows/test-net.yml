@@ -1,0 +1,12 @@
+name: Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -s --max-time 10 -o /dev/null -w "%{http_code}" https://registry.npmjs.org/@railway/cli/latest
+      - run: curl -s --max-time 10 -o /dev/null -w "%{http_code}" https://raw.githubusercontent.com/railwayapp/railway/main/install.sh
+      - run: curl -s --max-time 10 -o /dev/null -w "%{http_code}" https://api.github.com/repos/railwayapp/railway/releases/latest
