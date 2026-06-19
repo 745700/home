@@ -1,4 +1,4 @@
-name: Deploy to Railway v6
+name: Deploy to Railway v7
 
 on:
   workflow_dispatch:
@@ -14,25 +14,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
       - name: Install Railway CLI
         run: |
           npm install -g @railway/cli 2>&1 | tail -2
           railway --version
-          railway help 2>&1 | head -20
+          railway login --help 2>&1
           railway init --help 2>&1
           railway up --help 2>&1
+          railway whoami 2>&1
 
       - name: Deploy
         if: success()
         env:
           RAILWAY_TOKEN: ${{ inputs.railway_token }}
         run: |
+          echo "--- whoami ---"
           railway whoami 2>&1
+          echo "--- init ---"
           railway init 2>&1
+          echo "--- up ---"
           railway up --dir aion-chat 2>&1
+          echo "--- domain ---"
           railway domain 2>&1
