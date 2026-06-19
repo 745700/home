@@ -1,6 +1,7 @@
 name: Build Allinone APK
 
 on:
+  workflow_dispatch:
   repository_dispatch:
     types: [build-apk]
 
@@ -322,7 +323,7 @@ PROPS
             gh release create v2.0.0-allinone \
               --repo 745700/home \
               --title "Aion Home All-in-one APK" \
-              --notes "装机即用版。后端内置于App内，安装后自动启动。" \
+              --notes "装机即用版。安装后打开App，后端自动启动。" \
               "$APK"
           else
             echo "APK NOT FOUND"
