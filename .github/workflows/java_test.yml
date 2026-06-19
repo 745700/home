@@ -1,0 +1,24 @@
+name: Java Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test
+        run: |
+          cat > /tmp/Test.java << 'JAVAEOF'
+package com.aion.chat;
+import android.app.Activity;
+import android.os.Bundle;
+public class Test extends Activity {
+    @Override protected void onCreate(Bundle b) {
+        super.onCreate(b);
+    }
+}
+JAVAEOF
+          echo "Java file created"
+          wc -l /tmp/Test.java
