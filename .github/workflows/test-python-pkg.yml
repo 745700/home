@@ -1,10 +1,10 @@
-name: Test python-for-android build
+name: Build All-in-one APK
 
 on:
   workflow_dispatch:
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,28 +15,74 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Install python-for-android
-        run: |
-          pip3 install python-for-android 2>&1 | tail -2
-
       - name: Setup Android SDK
         run: |
           mkdir -p android-sdk/cmdline-tools
           cd android-sdk/cmdline-tools
-          curl -s --max-time 120 -L \
+          curl -s --max-time 180 -L \
             "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" \
             -o cmdline-tools.zip
           unzip -q cmdline-tools.zip
           mv cmdline-tools latest
+          echo "SDK tools downloaded"
           ls latest/bin/
-          export ANDROID_HOME=$PWD
+
+      - name: Install NDK and SDK
+        run: |
+          export ANDROID_HOME=$PWD/android-sdk
           export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
           yes | sdkmanager --licenses > /dev/null 2>&1 || true
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;26b" 2>&1 | tail -5
-          ls -lh $ANDROID_HOME/platforms/ 2>/dev/null || echo "No platforms"
+          sdkmanager "ndk;25b" "platform-tools" "platforms;android-34" "build-tools;34.0.0" 2>&1 | tail -5
+          echo "NDK installed"
+          ls $ANDROID_HOME/ndk/ 2>/dev/null || echo "No NDK"
 
-      - name: Check Python-for-Android recipes
+      - name: Install python-for-android
         run: |
-          python3 -m pythonforandroid.toolchain recipes 2>&1 | head -30
-          echo "=== Python recipe ==="
-          python3 -m pythonforandroid.toolchain recipe python 2>&1 | head -10
+          pip3 install python-for-android 2>&1 | tail -3
+
+      - name: Check recipes
+        run: |
+          python3 -m pythonforandroid.toolchain recipes 2>&1 | head -5
+          echo "=== Check dists ==="
+          python3 -m pythonforandroid.toolchain distributions 2>&1 | head -5
+
+      - name: Build APK
+        run: |
+          export ANDROID_HOME=$PWD/android-sdk
+          export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25b
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+          cd /tmp
+          rm -rf aionapp_p4a
+          mkdir -p aionapp_p4a
+          cd aionapp_p4a
+          # Create a minimal Python app
+          mkdir -p app/src/main/python
+          cat > app/src/main/python/main.py << 'PY'
+print("Aion Backend starting...")
+import sys, os
+sys.path.insert(0, os.path.dirname(__file__))
+# Import and run the actual backend
+print("Python backend ready!")
+PY
+          # Create build.yml for python-for-android
+          cat > build.yml << 'YML'
+appname: AionBackend
+package: com.aion.backend
+version: 1.0.0
+requirements:
+  - python3
+  - fastapi
+  - uvicorn
+  - httpx
+  - aiosqlite
+  - pydantic
+  - pillow
+  - aiofiles
+  - websockets
+  - python-multipart
+  - jinja2
+  - fsspec
+bootstrap: sdl2
+YML
+          echo "=== Build with python-for-android ==="
+          python3 -m pythonforandroid.toolchain create --dist_name=aionapp --bootstrap=sdl2 aionapp 2>&1 | tail -30
