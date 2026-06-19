@@ -1,0 +1,25 @@
+name: Railway API Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test Railway GraphQL
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          echo "Token: ${#RAILWAY_TOKEN}"
+          curl -s --max-time 10 -X POST \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"query":"mutation { projectCreate(input: {name: \"aionshome\"}) { id name } }"}' \
+            "https://backboard.railway.app/graphql/v1" 2>&1
+          echo ""
+          curl -s --max-time 10 -X POST \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"query":"{ me { id email } }"}' \
+            "https://backboard.railway.app/graphql/v1" 2>&1
