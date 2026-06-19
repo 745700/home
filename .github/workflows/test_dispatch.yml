@@ -1,0 +1,8 @@
+name: TestDispatch
+on: workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "test ok"
+      - run: sleep 5 && echo "done"
