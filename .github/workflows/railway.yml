@@ -1,4 +1,4 @@
-name: Deploy to Railway v9
+name: Deploy to Railway v10
 
 on:
   workflow_dispatch:
@@ -9,9 +9,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Railway CLI
+      - name: Install Railway CLI v4
         run: |
-          npm install -g @railway/cli 2>&1 | tail -2
+          npm install -g @railway/cli@4 2>&1 | tail -2
           railway --version
 
       - name: Deploy
@@ -19,6 +19,12 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
           set +e
-          # Try login with token
-          railway login --token "$RAILWAY_TOKEN" 2>&1
+          echo "=== whoami ==="
           railway whoami 2>&1
+          echo "EXIT whoami: $?"
+          echo "=== login ==="
+          railway login --token "$RAILWAY_TOKEN" 2>&1
+          echo "EXIT login: $?"
+          echo "=== whoami2 ==="
+          railway whoami 2>&1
+          echo "EXIT whoami2: $?"
