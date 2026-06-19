@@ -1,4 +1,4 @@
-name: Deploy to Railway v7
+name: Deploy to Railway
 
 on:
   workflow_dispatch:
@@ -18,21 +18,13 @@ jobs:
         run: |
           npm install -g @railway/cli 2>&1 | tail -2
           railway --version
-          railway login --help 2>&1
-          railway init --help 2>&1
-          railway up --help 2>&1
-          railway whoami 2>&1
 
       - name: Deploy
-        if: success()
         env:
           RAILWAY_TOKEN: ${{ inputs.railway_token }}
         run: |
-          echo "--- whoami ---"
           railway whoami 2>&1
-          echo "--- init ---"
-          railway init 2>&1
-          echo "--- up ---"
-          railway up --dir aion-chat 2>&1
-          echo "--- domain ---"
+          railway init --name aionshome --json 2>&1
+          railway up ./aion-chat --detach --json -y 2>&1
+          sleep 30
           railway domain 2>&1
