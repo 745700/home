@@ -1,0 +1,14 @@
+[project]
+name = "aionshome"
+
+[[services]]
+name = "aionshome"
+path = "aion-chat"
+buildCommand = "pip install -r requirements.txt"
+startCommand = "python3 -c \"exec(open('render_stub.py').read())\" && python3 main.py"
+healthCheck = "/api/health"
+publicPort = 8000
+
+[service.env]
+key = "PYTHON_VERSION"
+value = "3.11"
