@@ -1,0 +1,165 @@
+name: Min Build Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Setup Android SDK
+        run: |
+          mkdir -p android-sdk/cmdline-tools
+          cd android-sdk/cmdline-tools
+          curl -s --max-time 120 -L \
+            "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" \
+            -o cmdline-tools.zip
+          unzip -q cmdline-tools.zip && mv cmdline-tools latest
+          export ANDROID_HOME=$PWD/..
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" 2>&1 | tail -2
+      - name: Download Python
+        run: |
+          curl -s --max-time 60 -L \
+            "https://packages.termux.dev/apt/termux-main/pool/main/p/python/python_3.13.13-1_aarch64.deb" \
+            -o /tmp/python.deb
+          ls -lh /tmp/python.deb
+          dpkg-deb -x /tmp/python.deb /tmp/python_extracted/
+      - name: Build APK
+        run: |
+          mkdir -p /tmp/apk/app/src/main/java/com/aion/chat
+          mkdir -p /tmp/apk/app/src/main/res/values
+          mkdir -p /tmp/apk/app/src/main/res/xml
+          mkdir -p /tmp/apk/gradle/wrapper
+          
+          # Python binary in assets
+          mkdir -p /tmp/apk/app/src/main/assets/python
+          cp /tmp/python_extracted/usr/bin/python3.13 /tmp/apk/app/src/main/assets/python/
+          
+          # Java launcher
+          cat > /tmp/apk/app/src/main/java/com/aion/chat/MainActivity.java << 'JAVA'
+package com.aion.chat;
+import android.app.Activity;
+import android.os.Bundle;
+import android.widget.TextView;
+import java.io.*;
+public class MainActivity extends Activity {
+    @Override protected void onCreate(Bundle b) {
+        super.onCreate(b);
+        TextView tv = new TextView(this);
+        tv.setText("Aion APK Test\n");
+        setContentView(tv);
+        
+        // Extract Python
+        File py = new File(getFilesDir(), "python3.13");
+        if (!py.exists()) {
+            try {
+                java.nio.file.Files.createDirectories(py.getParentFile().toPath());
+                java.nio.file.Files.copy(getAssets().open("python/python3.13"), py.toPath());
+                py.setExecutable(true, false);
+            } catch (Exception e) { tv.append("Error: " + e + "\n"); return; }
+        }
+        tv.append("Python: " + py.length() + " bytes\n");
+        tv.append("Extracted to: " + py + "\n");
+        
+        try {
+            ProcessBuilder pb = new ProcessBuilder(py.getAbsolutePath(), "-c", "import sys; print(sys.version)");
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
+            String l;
+            while ((l = br.readLine()) != null) tv.append(l + "\n");
+            tv.append("Exit: " + p.waitFor() + "\n");
+        } catch (Exception e) { tv.append("Exec error: " + e + "\n"); }
+    }
+}
+JAVA
+          
+          # AndroidManifest
+          cat > /tmp/apk/app/src/main/AndroidManifest.xml << 'XML'
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.aion.chat">
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <application
+        android:label="Aion Home"
+        android:usesCleartextTraffic="true">
+        <activity android:name=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
+XML
+          
+          # Resources
+          mkdir -p /tmp/apk/app/src/main/res/xml
+          cat > /tmp/apk/app/src/main/res/xml/network_security_config.xml << 'XML'
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true"/>
+</network-security-config>
+XML
+          cat > /tmp/apk/app/src/main/res/values/strings.xml << 'XML'
+<resources><string name="app_name">Aion Home</string></resources>
+XML
+          
+          # Gradle files
+          cat > /tmp/apk/build.gradle << 'GROOVY'
+plugins { id 'com.android.application' version '8.2.0' }
+android {
+    namespace "com.aion.chat"
+    compileSdk 34
+    defaultConfig {
+        applicationId "com.aion.chat"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "2.0.0-allinone"
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17; }
+}
+dependencies {}
+GROOVY
+          
+          cat > /tmp/apk/gradle.properties << 'PROPS'
+org.gradle.jvmargs=-Xmx4096m
+android.useAndroidX=true
+android.enableJetifier=true
+PROPS
+          
+          cat > /tmp/apk/settings.gradle << 'SETTINGS'
+rootProject.name = "AionHome"
+SETTINGS
+          
+          cat > /tmp/apk/gradle/wrapper/gradle-wrapper.properties << 'PROPS'
+distributionBase=GRADLE_USER_HOME
+distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
+distributionPath=wrapper/dists
+zipStorePath=wrapper/dists
+zipStoreBase=GRADLE_USER_HOME
+PROPS
+          
+          # Build
+          export ANDROID_HOME=/tmp/apk/android-sdk
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+          
+          if [ ! -f /tmp/gradle-8.4.zip ]; then
+            curl -s --max-time 120 -L "https://services.gradle.org/distributions/gradle-8.4-bin.zip" -o /tmp/gradle-8.4.zip
+          fi
+          unzip -q -o /tmp/gradle-8.4.zip -d /tmp/
+          /tmp/gradle-8.4/bin/gradle wrapper --gradle-version 8.4 2>&1 | tail -2
+          ./gradlew assembleDebug --no-daemon 2>&1 | tail -20
+          
+          find /tmp/apk -name "*.apk" | head -3
