@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: aionshome
+    region: singapore
+    repo: https://github.com/745700/home
+    branch: main
+    rootDir: aion-chat
+    buildCommand: pip install -r requirements.txt
+    startCommand: python3 main.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
