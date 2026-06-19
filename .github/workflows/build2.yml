@@ -1,19 +1,408 @@
-name: Build All-in-one APK v2
+name: Build All-in-one APK
 
 on:
   workflow_dispatch:
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
+
     steps:
       - uses: actions/checkout@v4
+
       - name: Setup JDK
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-      - name: Show env
+
+      - name: Setup Android SDK
         run: |
-          echo "JDK available"
-          java -version 2>&1 | head -1
+          mkdir -p android-sdk/cmdline-tools
+          cd android-sdk/cmdline-tools
+          curl -s --max-time 120 -L \
+            "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" \
+            -o cmdline-tools.zip
+          unzip -q cmdline-tools.zip
+          mv cmdline-tools latest
+          echo "ANDROID_HOME=$PWD/.." >> $GITHUB_ENV
+          export ANDROID_HOME=$PWD/..
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" 2>&1 | tail -2
+
+      - name: Download Termux Python
+        run: |
+          curl -s --max-time 60 -L \
+            "https://packages.termux.dev/apt/termux-main/pool/main/p/python/python_3.13.13-1_aarch64.deb" \
+            -o /tmp/python.deb
+          ls -lh /tmp/python.deb
+          dpkg-deb -x /tmp/python.deb /tmp/python_extracted/
+          find /tmp/python_extracted/ -name "python3*" | head -5
+          ls /tmp/python_extracted/usr/bin/python* /tmp/python_extracted/usr/lib/libpython* 2>/dev/null
+
+      - name: Install pip packages
+        run: |
+          pip3 install --no-cache-dir --prefix=/tmp/pyprefix \
+            fastapi uvicorn httpx aiosqlite pydantic pillow aiofiles \
+            websockets python-multipart jinja2 fsspec jiter 2>&1 | tail -3
+          echo "=== Packages installed ==="
+          ls /tmp/pyprefix/lib/python3.13/site-packages/ | head -10
+
+      - name: Prepare Android project
+        run: |
+          mkdir -p /tmp/apk/app/src/main/assets/python/lib/python3.13
+          mkdir -p /tmp/apk/app/src/main/assets/aion-chat
+          mkdir -p /tmp/apk/app/src/main/java/com/aion/chat
+          mkdir -p /tmp/apk/app/src/main/res/values
+          mkdir -p /tmp/apk/app/src/main/res/xml
+          mkdir -p /tmp/apk/app/src/main/res/drawable
+          mkdir -p /tmp/apk/gradle/wrapper
+
+          # Copy Python binary and libs
+          cp /tmp/python_extracted/usr/bin/python3.13 /tmp/apk/app/src/main/assets/python/
+          find /tmp/python_extracted/ -name "libpython3.13*" -exec cp {} /tmp/apk/app/src/main/assets/python/ \; 2>/dev/null || true
+          ls /tmp/apk/app/src/main/assets/python/
+
+          # Copy pip packages
+          cp -r /tmp/pyprefix/lib/python3.13/site-packages/* /tmp/apk/app/src/main/assets/python/lib/python3.13/ 2>/dev/null || true
+          echo "=== pip packages ==="
+          ls /tmp/apk/app/src/main/assets/python/lib/python3.13/ | head -15
+
+      - name: Download Aion Chat backend
+        run: |
+          cd /tmp
+          rm -rf aion-chat-src && mkdir aion-chat-src
+          git clone --depth=1 \
+            https://github.com/745700/home.git aion-chat-src 2>&1 | tail -2
+          cp -r /tmp/aion-chat-src/aion-chat/* /tmp/apk/app/src/main/assets/aion-chat/
+          ls /tmp/apk/app/src/main/assets/aion-chat/ | head -10
+          echo "=== aion-chat size ==="
+          du -sh /tmp/apk/app/src/main/assets/aion-chat/
+
+      - name: Create launcher Java
+        run: |
+          cat > /tmp/apk/app/src/main/java/com/aion/chat/PythonLauncher.java << 'JAVAEOF'
+package com.aion.chat;
+
+import android.app.Activity;
+import android.os.Bundle;
+import android.widget.TextView;
+import android.widget.ScrollView;
+import android.widget.LinearLayout;
+import java.io.*;
+import java.nio.file.*;
+
+public class PythonLauncher extends Activity {
+    private Process backendProcess;
+    private TextView logView;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        logView = new TextView(this);
+        logView.setTextSize(11);
+        logView.setPadding(16, 16, 16, 16);
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(logView);
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.addView(scroll);
+        setContentView(layout);
+
+        new Thread(this::startBackend).start();
+    }
+
+    private void startBackend() {
+        try {
+            File filesDir = getFilesDir();
+            File pythonDir = new File(filesDir, "python");
+            File aionDir = new File(filesDir, "aion-chat");
+            File pythonBin = new File(pythonDir, "python3.13");
+
+            runOnUi(() -> log("=== Aion Backend ==="));
+
+            // Extract Python if needed
+            if (!pythonBin.exists()) {
+                runOnUi(() -> log("Extracting Python..."));
+                pythonDir.mkdirs();
+                copyAssets("python", pythonDir);
+                pythonBin.setExecutable(true, false);
+                runOnUi(() -> log("Python extracted: " + pythonBin.length() + " bytes"));
+            }
+
+            // Extract aion-chat if needed
+            if (!aionDir.exists() || aionDir.list().length < 3) {
+                runOnUi(() -> log("Extracting backend..."));
+                aionDir.mkdirs();
+                copyAssets("aion-chat", aionDir);
+            }
+
+            runOnUi(() -> log("Backend dir: " + aionDir.getAbsolutePath()));
+            runOnUi(() -> log("Starting server on 127.0.0.1:8080..."));
+
+            // Start uvicorn
+            ProcessBuilder pb = new ProcessBuilder(
+                pythonBin.getAbsolutePath(), "-m", "uvicorn",
+                "main:app",
+                "--host", "127.0.0.1", "--port", "8080"
+            );
+            pb.environment().put("PYTHONPATH", pythonDir.getAbsolutePath() + ":" + new File(pythonDir, "lib/python3.13/site-packages").getAbsolutePath());
+            pb.environment().put("PYTHONHOME", pythonDir.getAbsolutePath());
+            pb.environment().put("TERM", "xterm");
+            pb.directory(aionDir);
+            pb.redirectErrorStream(true);
+
+            backendProcess = pb.start();
+
+            // Read output
+            BufferedReader br = new BufferedReader(new InputStreamReader(backendProcess.getInputStream()));
+            String line;
+            int count = 0;
+            while ((line = br.readLine()) != null && count < 15) {
+                final String l = line;
+                runOnUi(() -> log("[srv] " + l));
+                count++;
+            }
+
+            // Wait for startup
+            Thread.sleep(3000);
+
+            if (backendProcess.isAlive()) {
+                runOnUi(() -> {
+                    log("Server started!");
+                    log("Opening chat UI...");
+                    // Launch WebView
+                    try {
+                        Class<?> webViewClass = Class.forName("com.aion.chat.WebViewActivity");
+                        android.content.Intent intent = new android.content.Intent(this, webViewClass);
+                        intent.putExtra("url", "http://127.0.0.1:8080/chat");
+                        startActivity(intent);
+                        finish();
+                    } catch (Exception e) {
+                        log("WebView not available: " + e.getMessage());
+                        log("Connect to: http://127.0.0.1:8080/chat");
+                    }
+                });
+            } else {
+                runOnUi(() -> {
+                    log("ERROR: Server died, exit=" + backendProcess.exitValue());
+                    log("Check logs above");
+                });
+            }
+
+        } catch (Exception e) {
+            final String err = e.getClass().getSimpleName() + ": " + e.getMessage();
+            runOnUi(() -> log("FATAL: " + err));
+        }
+    }
+
+    private void copyAssets(String src, File dst) {
+        try {
+            String[] files = getAssets().list(src);
+            if (files == null || files.length == 0) {
+                // File
+                File out = new File(dst, new java.io.File(src).getName());
+                try (InputStream is = getAssets().open(src)) {
+                    Files.copy(is, out.toPath());
+                }
+            } else {
+                dst.mkdirs();
+                for (String f : files) {
+                    copyAssets(src + "/" + f, dst);
+                }
+            }
+        } catch (IOException e) {
+            runOnUi(() -> log("Copy error: " + e));
+        }
+    }
+
+    private void runOnUi(Runnable r) {
+        runOnUiThread(r);
+    }
+
+    private void log(String msg) {
+        android.util.Log.d("AionLauncher", msg);
+        logView.append(msg + "\n");
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (backendProcess != null && backendProcess.isAlive()) {
+            backendProcess.destroy();
+        }
+    }
+}
+JAVAEOF
+
+      - name: Create WebView activity
+        run: |
+          cat > /tmp/apk/app/src/main/java/com/aion/chat/WebViewActivity.java << 'JAVAEOF'
+package com.aion.chat;
+
+import android.os.Bundle;
+import android.webkit.*;
+import android.widget.Toast;
+
+public class WebViewActivity extends Activity {
+    @Override protected void onCreate(Bundle b) {
+        super.onCreate(b);
+        WebView wv = new WebView(this);
+        setContentView(wv);
+
+        String url = getIntent().getStringExtra("url");
+        if (url == null) url = "http://127.0.0.1:8080/chat";
+
+        wv.loadUrl(url);
+        WebSettings s = wv.getSettings();
+        s.setJavaScriptEnabled(true);
+        s.setDomStorageEnabled(true);
+        s.setMediaPlaybackRequiresUserGesture(false);
+        s.setAllowFileAccess(true);
+        s.setAllowContentAccess(true);
+
+        wv.setWebViewClient(new WebViewClient() {
+            @Override public void onReceivedError(WebView v, int err, String desc) {
+                Toast.makeText(WebViewActivity.this, desc, Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        Toast.makeText(this, "Loading: " + url, Toast.LENGTH_SHORT).show();
+    }
+}
+JAVAEOF
+
+      - name: Create AndroidManifest
+        run: |
+          cat > /tmp/apk/app/src/main/AndroidManifest.xml << 'XMLEOF'
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.aion.chat">
+
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+
+    <application
+        android:label="Aion Home"
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
+
+        <activity android:name=".PythonLauncher">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".WebViewActivity"/>
+
+    </application>
+</manifest>
+XMLEOF
+
+      - name: Create resource files
+        run: |
+          mkdir -p /tmp/apk/app/src/main/res/xml
+          cat > /tmp/apk/app/src/main/res/xml/network_security_config.xml << 'XMLEOF'
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true"/>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <domain includeSubdomains="true">localhost</domain>
+    </domain-config>
+</network-security-config>
+XMLEOF
+
+          cat > /tmp/apk/app/src/main/res/values/strings.xml << 'XMLEOF'
+<resources>
+    <string name="app_name">Aion Home</string>
+</resources>
+XMLEOF
+
+      - name: Create Gradle build files
+        run: |
+          cat > /tmp/apk/build.gradle << 'GROOVY'
+plugins {
+    id 'com.android.application'
+}
+android {
+    namespace 'com.aion.chat'
+    compileSdk 34
+    defaultConfig {
+        applicationId "com.aion.chat"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "2.0.0-allinone"
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    aaptOptions {
+        noCompress "py"
+        noCompress "txt"
+        noCompress "json"
+        noCompress "html"
+        noCompress "css"
+        noCompress "js"
+    }
+}
+dependencies {}
+GROOVY
+
+          cat > /tmp/apk/gradle.properties << 'PROPS'
+org.gradle.jvmargs=-Xmx4096m
+android.useAndroidX=true
+android.enableJetifier=true
+PROPS
+
+          cat > /tmp/apk/settings.gradle << 'SETTINGS'
+rootProject.name = "AionHome"
+SETTINGS
+
+          cat > /tmp/apk/gradle/wrapper/gradle-wrapper.properties << 'PROPS'
+distributionBase=GRADLE_USER_HOME
+distributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-bin.zip
+distributionPath=wrapper/dists
+zipStorePath=wrapper/dists
+zipStoreBase=GRADLE_USER_HOME
+PROPS
+
+      - name: Build APK
+        env:
+          ANDROID_HOME: /tmp/apk/android-sdk
+        run: |
+          export ANDROID_HOME=/tmp/apk/android-sdk
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+
+          cd /tmp/apk
+          if [ ! -f /tmp/gradle-8.4-bin.zip ]; then
+            curl -s --max-time 180 -L \
+              "https://services.gradle.org/distributions/gradle-8.4-bin.zip" \
+              -o /tmp/gradle-8.4-bin.zip
+          fi
+          unzip -q -o /tmp/gradle-8.4-bin.zip -d /tmp/
+          /tmp/gradle-8.4/bin/gradle wrapper --gradle-version 8.4 2>&1 | tail -3
+          /tmp/gradle-8.4/bin/gradle assembleDebug --no-daemon 2>&1 | tail -30
+
+      - name: Check APK
+        run: |
+          find /tmp/apk -name "*.apk" -ls 2>/dev/null
+          APK=$(find /tmp/apk -name "*.apk" 2>/dev/null | head -1)
+          if [ -n "$APK" ]; then
+            ls -lh "$APK"
+          else
+            echo "NO APK FOUND - checking build errors"
+          fi
