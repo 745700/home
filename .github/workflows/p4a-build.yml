@@ -1,0 +1,69 @@
+name: Build All-in-one APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        run: |
+          mkdir -p android-sdk/cmdline-tools
+          cd android-sdk/cmdline-tools
+          curl -s --max-time 180 -L \
+            "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" \
+            -o cmdline-tools.zip
+          unzip -q cmdline-tools.zip
+          mv cmdline-tools latest
+
+      - name: Install NDK and SDK
+        run: |
+          export ANDROID_HOME=$PWD/android-sdk
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "ndk;25b" "platform-tools" "platforms;android-34" "build-tools;34.0.0" 2>&1 | tail -3
+
+      - name: Install python-for-android
+        run: |
+          pip3 install python-for-android 2>&1 | tail -2
+
+      - name: Build APK
+        run: |
+          export ANDROID_HOME=$PWD/android-sdk
+          export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25b
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+          cd /tmp
+          rm -rf aionapp_p4a && mkdir -p aionapp_p4a
+          cd aionapp_p4a
+          mkdir -p app/src/main/python
+          echo 'print("Aion backend starting...")' > app/src/main/python/main.py
+          cat > build.yml << 'YML'
+appname: AionBackend
+package: com.aion.backend
+version: 1.0.0
+requirements:
+  - python3
+  - fastapi
+  - uvicorn
+  - httpx
+  - aiosqlite
+  - pydantic
+  - pillow
+  - aiofiles
+  - websockets
+  - python-multipart
+  - jinja2
+  - fsspec
+bootstrap: sdl2
+YML
+          echo "=== Build ==="
+          python3 -m pythonforandroid.toolchain create --dist_name=aionapp --bootstrap=sdl2 aionapp 2>&1 | tail -30
