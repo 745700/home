@@ -1,4 +1,4 @@
-name: Deploy to Railway
+name: Deploy to Railway v8
 
 on:
   workflow_dispatch:
@@ -19,12 +19,42 @@ jobs:
           npm install -g @railway/cli 2>&1 | tail -2
           railway --version
 
-      - name: Deploy
+      - name: Check auth
         env:
           RAILWAY_TOKEN: ${{ inputs.railway_token }}
         run: |
+          set +e
+          echo "=== whoami ==="
           railway whoami 2>&1
+          echo "EXIT: $?"
+
+      - name: Init project
+        if: success()
+        env:
+          RAILWAY_TOKEN: ${{ inputs.railway_token }}
+        run: |
+          set +e
+          echo "=== init ==="
           railway init --name aionshome --json 2>&1
+          echo "EXIT: $?"
+
+      - name: Deploy
+        if: success()
+        env:
+          RAILWAY_TOKEN: ${{ inputs.railway_token }}
+        run: |
+          set +e
+          echo "=== up ==="
           railway up ./aion-chat --detach --json -y 2>&1
+          echo "EXIT: $?"
+
+      - name: Get domain
+        if: success()
+        env:
+          RAILWAY_TOKEN: ${{ inputs.railway_token }}
+        run: |
+          set +e
           sleep 30
+          echo "=== domain ==="
           railway domain 2>&1
+          echo "EXIT: $?"
