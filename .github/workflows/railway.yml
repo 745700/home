@@ -1,0 +1,27 @@
+name: Deploy to Railway
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Railway CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/railwayapp/railway/master/install.sh | sh
+          echo "$RAILWAY_TOKEN" | railway login --token /dev/stdin
+
+      - name: Deploy
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          railway init --no-input
+          railway up --service aionshome --dir aion-chat --no-interaction
