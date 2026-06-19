@@ -1,0 +1,30 @@
+name: Railway GQL Deploy
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Railway Deploy via GraphQL
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          # First, get user info
+          echo "=== Who am I ==="
+          curl -s --max-time 10 -X POST \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://backboard.railway.app/graphql/v1" \
+            -d '{"query":"{ me { id email } }"}' 2>&1
+          
+          echo ""
+          echo "=== Create Project ==="
+          curl -s --max-time 10 -X POST \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://backboard.railway.app/graphql/v1" \
+            -d '{"query":"mutation { projectCreate(input: {name: \"aionshome\"}) { project { id } } }"}' 2>&1
