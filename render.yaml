@@ -1,12 +1,15 @@
 services:
   - type: web
     name: aionshome
-    region: singapore
+    region: oregon
     repo: https://github.com/745700/home
     branch: main
     rootDir: aion-chat
-    buildCommand: pip install -r requirements.txt
+    buildCommand: |
+      apt-get update && apt-get install -y libsm6 libxext6 libgl1-mesa-glx libglib2.0-0
+      pip install -r requirements.txt
     startCommand: python3 main.py
+    healthCheckPath: /api/health
     envVars:
       - key: PYTHON_VERSION
         value: 3.11
