@@ -14,14 +14,28 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install Railway CLI
+      - name: Install Railway CLI via direct binary
         run: |
-          curl -fsSL https://raw.githubusercontent.com/railwayapp/railway/master/install.sh | sh
-          echo "$RAILWAY_TOKEN" | railway login --token /dev/stdin
+          set -x
+          # Try direct binary download from GitHub releases
+          VER=$(curl -s https://api.github.com/repos/railwayapp/railway/releases/latest 2>&1 | grep tag_name | cut -d'"' -f4)
+          echo "Version: $VER"
+          if [ -z "$VER" ]; then
+            VER="v2.8.4"
+          fi
+          echo "Downloading railway $VER..."
+          curl -L "https://github.com/railwayapp/railway/releases/download/$VER/railway-$VER-linux-amd64.tar.gz" -o /tmp/railway.tar.gz 2>&1 | tail -3
+          tar -xzf /tmp/railway.tar.gz -C /usr/local/bin 2>&1
+          railway --version 2>&1 || echo "BINARY_FAILED"
 
       - name: Deploy
+        if: success()
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
-          railway init --no-input
-          railway up --service aionshome --dir aion-chat --no-interaction
+          set -x
+          echo "Token length: ${#RAILWAY_TOKEN}"
+          railway login --token "$RAILWAY_TOKEN" 2>&1 | head -5
+          railway init 2>&1
+          railway up --dir aion-chat 2>&1 | tail -10
+          railway domain 2>&1 | head -3
