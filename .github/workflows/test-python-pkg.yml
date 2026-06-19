@@ -1,4 +1,4 @@
-name: Test python-for-android
+name: Find Python URL
 
 on:
   workflow_dispatch:
@@ -7,23 +7,30 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: Test python-for-android
+      - name: Parse Termux Packages
         run: |
-          pip3 install python-for-android 2>&1 | tail -3
-          python3 -m pythonforandroid.toolchain --version 2>&1
-          echo "=== Available recipes ==="
-          python3 -m pythonforandroid.toolchain recipes 2>&1 | head -10
-
-      - name: Download Python arm64 binary
-        run: |
-          echo "=== Check Termux apt repo ==="
-          curl -s --max-time 15 \
+          curl -s --max-time 30 \
             "https://packages.termux.dev/apt/termux-main/dists/stable/main/binary-aarch64/Packages.gz" \
             -o /tmp/Packages.gz
           gunzip -f /tmp/Packages.gz
-          grep -A5 "^Package: python$" /tmp/Packages 2>/dev/null | head -10
+          # Find python3 entry - show the Architecture and Filename fields
+          awk '/^Package: python3$/,/^$/ {print}' /tmp/Packages | grep -E "^Package|^Filename|^Version|^Architecture" | head -10
           echo "---"
-          curl -s --max-time 15 \
-            "https://packages.termux.dev/apt/termux-main/pool/main/p/python3.11/python3_3.11.8_aarch64.deb" \
-            -o /tmp/python3.deb
-          ls -lh /tmp/python3.deb
+          # Also check python (the meta-package)
+          awk '/^Package: python$/,/^$/ {print}' /tmp/Packages | grep -E "^Package|^Filename|^Version|^Architecture" | head -10
+
+          echo "=== Download python3 ==="
+          FILENAME=$(awk '/^Package: python3$/,/^$/ {if(/^Filename:/) print $2}' /tmp/Packages)
+          echo "Filename: $FILENAME"
+          if [ -n "$FILENAME" ]; then
+            curl -s --max-time 60 -L \
+              "https://packages.termux.dev/apt/termux-main/$FILENAME" \
+              -o /tmp/python3.deb
+            ls -lh /tmp/python3.deb
+            file /tmp/python3.deb 2>/dev/null
+            # Check if it's a valid deb
+            if file /tmp/python3.deb | grep -q "Debian binary"; then
+              echo "VALID DEB!"
+              ar t /tmp/python3.deb | head -5
+            fi
+          fi
