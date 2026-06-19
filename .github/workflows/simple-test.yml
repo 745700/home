@@ -7,4 +7,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "Hello world"
+      - run: echo "Downloading Termux Python"
+      - run: |
+          curl -s --max-time 60 -L \
+            "https://packages.termux.dev/apt/termux-main/pool/main/p/python/python_3.13.13-1_aarch64.deb" \
+            -o /tmp/python.deb
+          ls -lh /tmp/python.deb
+          file /tmp/python.deb
