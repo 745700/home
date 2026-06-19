@@ -1,4 +1,4 @@
-name: Test Python Package Download
+name: Test Chaquopy Build
 
 on:
   workflow_dispatch:
@@ -7,26 +7,63 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: Test Termux package download
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Chaquopy
+        run: pip3 install buildozer 2>&1 | tail -3
+
+      - name: Try Chaquopy
         run: |
-          echo "=== Test 1: Termux deb from GitHub ==="
-          curl -s --max-time 30 -L \
-            "https://github.com/termux/termux-packages/releases/download/bootstrap-2024-01-29/python-3.11.8-aarch64.deb" \
-            -o /tmp/python.deb 2>&1
-          ls -lh /tmp/python.deb 2>/dev/null || echo "FAILED"
+          pip3 install chaquopy 2>&1 | tail -5
+          python3 -c "import chaquopy; print('Chaquopy OK:', chaquopy.__version__)" 2>&1
 
-          echo "=== Test 2: Check if python3 is available ==="
-          which python3 && python3 --version || echo "No python3"
+      - name: Create test Android project with Chaquopy
+        run: |
+          mkdir -p /tmp/chaquopy_test
+          cd /tmp/chaquopy_test
+          # Create settings.gradle
+          echo 'include ":app"' > settings.gradle
+          # Create build.gradle (root)
+          cat > build.gradle << 'GROOVY'
+          buildscript {
+              repositories { google(); mavenCentral(); }
+              dependencies { classpath "com.android.tools.build:gradle:8.2.0"; classpath "com.chaquo.python:gradle:16.0.0"; }
+          }
+          allprojects { repositories { google(); mavenCentral(); } }
+          task clean(type: Delete) { delete rootProject.buildDir }
+          GROOVY
+          # Create gradle.properties
+          echo "android.useAndroidX=true" > gradle.properties
+          echo "android.enableJetifier=true" >> gradle.properties
+          # Create app/build.gradle
+          mkdir -p app/src/main
+          cat > app/build.gradle << 'GROOVY'
+          plugins { id 'com.android.application'; id 'com.chaquo.python' }
+          android {
+              namespace "com.test.chaquopy"
+              sourceSets { main { python.srcDir "python" } }
+          }
+          dependencies { implementation "com.chaquo.python:chaquopy:16.0.0" }
+          GROOVY
+          # Create minimal AndroidManifest.xml
+          cat > app/src/main/AndroidManifest.xml << 'XML'
+          <manifest package="com.test.chaquopy"/>
+          XML
+          mkdir -p app/src/main/python
+          echo 'print("Hello from Chaquopy Python!")' > app/src/main/python/main.py
+          ls -la
 
-          echo "=== Test 3: Try pip install some packages ==="
-          pip3 install fastapi uvicorn httpx aiosqlite pydantic pillow numpy 2>&1 | tail -5
-
-          echo "=== Test 4: Download Termux bootstrap ==="
-          curl -s --max-time 60 -L \
-            "https://github.com/termux/termux.github.io/releases/download/v1.0.0/termux-bootstrap-aarch64.tar.zst" \
-            -o /tmp/bootstrap.tar.zst 2>&1
-          ls -lh /tmp/bootstrap.tar.zst 2>/dev/null || echo "No bootstrap"
-
-          echo "=== Test 5: Try direct Python for Android ==="
-          pip3 install --target /tmp/pylibs fsspec aiofiles 2>&1 | tail -2
-          echo "fsspec installed: $(ls /tmp/pylibs 2>/dev/null | head -3)"
+      - name: Build APK
+        run: |
+          cd /tmp/chaquopy_test
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon 2>&1 | tail -20
