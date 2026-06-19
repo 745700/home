@@ -1,4 +1,4 @@
-name: Download Python Deb
+name: Test python-for-android build
 
 on:
   workflow_dispatch:
@@ -7,31 +7,36 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: Download and verify Termux Python
+      - uses: actions/checkout@v4
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Install python-for-android
         run: |
-          URL="https://packages.termux.dev/apt/termux-main/pool/main/p/python/python_3.13.13-1_aarch64.deb"
-          echo "Downloading: $URL"
-          curl -s --max-time 60 -L "$URL" -o /tmp/python.deb
-          ls -lh /tmp/python.deb
-          file /tmp/python.deb
-          # Check valid deb
-          if file /tmp/python.deb | grep -q "Debian binary"; then
-            echo "=== VALID DEB ==="
-            ar t /tmp/python.deb | head -10
-            echo "=== Extract control info ==="
-            ar -p /tmp/python.deb control.tar.gz 2>/dev/null | tar -tzf - | head -10
-          else
-            cat /tmp/python.deb | head -5
-          fi
+          pip3 install python-for-android 2>&1 | tail -2
 
-          echo "=== Also download python_3.13.13 aarch64 dev package ==="
-          DEVURL="https://packages.termux.dev/apt/termux-main/pool/main/p/python/python-dev_3.13.13-1_aarch64.deb"
-          curl -s --max-time 30 -L "$DEVURL" -o /tmp/python-dev.deb
-          ls -lh /tmp/python-dev.deb
-          file /tmp/python-dev.deb
+      - name: Setup Android SDK
+        run: |
+          mkdir -p android-sdk/cmdline-tools
+          cd android-sdk/cmdline-tools
+          curl -s --max-time 120 -L \
+            "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" \
+            -o cmdline-tools.zip
+          unzip -q cmdline-tools.zip
+          mv cmdline-tools latest
+          ls latest/bin/
+          export ANDROID_HOME=$PWD
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;26b" 2>&1 | tail -5
+          ls -lh $ANDROID_HOME/platforms/ 2>/dev/null || echo "No platforms"
 
-          echo "=== Download libpython ==="
-          LIBURL="https://packages.termux.dev/apt/termux-main/pool/main/p/python/libpython3.13_3.13.13-1_aarch64.deb"
-          curl -s --max-time 30 -L "$LIBURL" -o /tmp/libpython.deb
-          ls -lh /tmp/libpython.deb
-          file /tmp/libpython.deb
+      - name: Check Python-for-Android recipes
+        run: |
+          python3 -m pythonforandroid.toolchain recipes 2>&1 | head -30
+          echo "=== Python recipe ==="
+          python3 -m pythonforandroid.toolchain recipe python 2>&1 | head -10
