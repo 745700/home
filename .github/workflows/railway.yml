@@ -1,7 +1,12 @@
-name: Deploy to Railway
+name: Deploy to Railway v4
 
 on:
   workflow_dispatch:
+    inputs:
+      railway_token:
+        description: 'Railway Token'
+        required: true
+        type: string
 
 jobs:
   deploy:
@@ -16,17 +21,14 @@ jobs:
 
       - name: Install Railway CLI
         run: |
-          set -x
           npm install -g @railway/cli 2>&1 | tail -3
-          railway --version 2>&1
+          railway --version
 
       - name: Deploy
-        if: success()
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN: ${{ inputs.railway_token }}
         run: |
-          set -x
-          echo "Token: ${#RAILWAY_TOKEN} chars"
+          echo "Token length: ${#RAILWAY_TOKEN}"
           railway login --token "$RAILWAY_TOKEN" 2>&1
           railway init --no-input 2>&1
           railway up --dir aion-chat 2>&1
