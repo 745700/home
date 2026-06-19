@@ -6,7 +6,7 @@ services:
     branch: main
     rootDir: aion-chat
     buildCommand: pip install -r requirements.txt
-    startCommand: PYTHONPATH=/app/vendor python3 main.py
+    startCommand: PYTHONPATH=/app/aion-chat/vendor python3 main.py
     healthCheckPath: /api/health
     envVars:
       - key: PYTHON_VERSION
