@@ -1,11 +1,6 @@
 name: Build Allinone APK
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - '.github/workflows/build_apk.yml'
   repository_dispatch:
     types: [build-apk]
 
@@ -13,7 +8,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 90
-    if: github.event.inputs.trigger == 'yes' || github.event_name == 'repository_dispatch'
 
     steps:
       - uses: actions/checkout@v4
@@ -66,19 +60,10 @@ jobs:
           mkdir -p /tmp/apk/app/src/main/res/xml
           mkdir -p /tmp/apk/gradle/wrapper
 
-          # Python binary + libs
           cp /tmp/python_extracted/usr/bin/python3.13 /tmp/apk/app/src/main/assets/python/
           find /tmp/python_extracted/ -name "libpython3.13*" -exec cp {} /tmp/apk/app/src/main/assets/python/ \; 2>/dev/null || true
-
-          # pip packages
           cp -r /tmp/pyprefix/lib/python3.13/site-packages/* /tmp/apk/app/src/main/assets/python/lib/python3.13/ 2>/dev/null || true
-
-          # Aion backend
           cp -r /tmp/aion-src/aion-chat/* /tmp/apk/app/src/main/assets/aion-chat/
-
-          echo "Python bin: $(ls /tmp/apk/app/src/main/assets/python/ | wc -l) files"
-          echo "Packages: $(ls /tmp/apk/app/src/main/assets/python/lib/python3.13/ | wc -l) files"
-          echo "Aion size: $(du -sh /tmp/apk/app/src/main/assets/aion-chat/ 2>/dev/null)"
 
       - name: Create Java launcher
         run: |
@@ -110,7 +95,7 @@ public class PythonLauncher extends Activity {
         ll.addView(sc);
         setContentView(ll);
         append("Aion Backend starting...");
-        new Thread(this::boot()).start();
+        new Thread(this::boot).start();
     }
 
     private void boot() {
@@ -127,7 +112,7 @@ public class PythonLauncher extends Activity {
                 pyBin.setExecutable(true, false);
                 append("Python: " + pyBin.length() + " bytes");
             } else {
-                append("Python found: " + pyBin.length() + " bytes");
+                append("Python found: " + pyBin.length());
             }
 
             if (!aionDir.exists() || aionDir.list().length < 3) {
@@ -135,7 +120,7 @@ public class PythonLauncher extends Activity {
                 aionDir.mkdirs();
                 copyAssets("aion-chat", aionDir);
             }
-            append("Backend: " + aionDir.getAbsolutePath());
+            append("Backend ready");
             append("Starting server on 127.0.0.1:8080...");
 
             File sitePkgs = new File(pyDir, "lib/python3.13/site-packages");
@@ -157,7 +142,7 @@ public class PythonLauncher extends Activity {
             sleep(3000);
 
             if (backend.isAlive()) {
-                append("Server started!");
+                append("Server OK!");
                 sleep(500);
                 runOnUiThread(() -> {
                     try {
@@ -167,12 +152,12 @@ public class PythonLauncher extends Activity {
                         startActivity(i);
                         finish();
                     } catch (Exception e) {
-                        append("WebView error: " + e.getMessage());
-                        append("Open: http://127.0.0.1:8080/chat");
+                        append("Error: " + e.getMessage());
+                        append("Open http://127.0.0.1:8080/chat");
                     }
                 });
             } else {
-                append("ERROR: Process died, exit=" + backend.exitValue());
+                append("ERROR: died, exit=" + backend.exitValue());
             }
         } catch (Exception e) {
             append("FATAL: " + e.getClass().getSimpleName() + ": " + e.getMessage());
@@ -273,7 +258,6 @@ XMLEOF
     </domain-config>
 </network-security-config>
 XMLEOF
-
           cat > /tmp/apk/app/src/main/res/values/strings.xml << 'XMLEOF'
 <resources><string name="app_name">Aion Home</string></resources>
 XMLEOF
@@ -297,16 +281,13 @@ android {
 }
 dependencies {}
 GROOVY
-
           cat > /tmp/apk/gradle.properties << 'PROPS'
 org.gradle.jvmargs=-Xmx4096m
 android.useAndroidX=true
 PROPS
-
           cat > /tmp/apk/settings.gradle << 'SETTINGS'
 rootProject.name = "AionHome"
 SETTINGS
-
           cat > /tmp/apk/gradle/wrapper/gradle-wrapper.properties << 'PROPS'
 distributionBase=GRADLE_USER_HOME
 distributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-bin.zip
@@ -340,15 +321,10 @@ PROPS
             ls -lh "$APK"
             gh release create v2.0.0-allinone \
               --repo 745700/home \
-              --title "Aion Home All-in-one APK (自带Python后端)" \
-              --notes "**装机即用版**
-
-安装后打开 App，后端自动启动，直接可用。
-
-构建时间: $(date '+%Y-%m-%d %H:%M')" \
+              --title "Aion Home All-in-one APK" \
+              --notes "装机即用版。后端内置于App内，安装后自动启动。" \
               "$APK"
           else
-            echo "APK NOT FOUND at $APK"
+            echo "APK NOT FOUND"
             find /tmp/apk -name "*.apk" 2>/dev/null
-            ls /tmp/apk/app/build/outputs/ 2>/dev/null || echo "No outputs dir"
           fi
