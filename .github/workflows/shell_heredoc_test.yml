@@ -1,0 +1,20 @@
+name: Shell Heredoc Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Write config
+        run: |
+          cat > /tmp/config.json << 'CFGDATA'
+          {
+            "name": "test",
+            "version": "1.0"
+          }
+          CFGDATA
+          echo "Config written"
+          cat /tmp/config.json
