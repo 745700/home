@@ -43,8 +43,10 @@ jobs:
             -o /tmp/python.deb
           ls -lh /tmp/python.deb
           dpkg-deb -x /tmp/python.deb /tmp/python_extracted/
-          find /tmp/python_extracted/ -name "python3*" | head -5
-          ls /tmp/python_extracted/usr/bin/ | grep -E "python|pip" | head -10
+          # Termux deb uses Android data dir: data/data/com.termux/files/usr/
+          PYTHON_BASE=/tmp/python_extracted/data/data/com.termux/files/usr
+          find $PYTHON_BASE/ -name "python3*" | head -5
+          ls $PYTHON_BASE/bin/ | grep -E "python|pip" | head -10
 
       - name: Install Python packages
         run: |
@@ -75,10 +77,12 @@ jobs:
           mkdir -p /tmp/apk_project/app/src/main/res/drawable
           mkdir -p /tmp/apk_project/gradle/wrapper
           
+          # Termux deb path
+          PYTHON_BASE=/tmp/python_extracted/data/data/com.termux/files/usr
           # Copy Python binary
-          cp /tmp/python_extracted/usr/bin/python3.13 /tmp/apk_project/app/src/main/assets/python
+          cp $PYTHON_BASE/bin/python3.13 /tmp/apk_project/app/src/main/assets/python
           # Copy libpython
-          find /tmp/python_extracted/ -name "libpython3.13*" -exec cp {} /tmp/apk_project/app/src/main/assets/python/ \; 2>/dev/null || true
+          find $PYTHON_BASE/ -name "libpython3.13*" -exec cp {} /tmp/apk_project/app/src/main/assets/python/ \; 2>/dev/null || true
           # Copy site-packages
           mkdir -p /tmp/apk_project/app/src/main/assets/python/lib/python3.13
           cp -r /tmp/site-packages/* /tmp/apk_project/app/src/main/assets/python/lib/python3.13/ 2>/dev/null || true
@@ -423,3 +427,4 @@ SETTINGS
           else
             echo "No APK found"
           fi
+
