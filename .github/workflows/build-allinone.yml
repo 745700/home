@@ -1,6 +1,7 @@
 name: Build All-in-one APK
 
 on:
+  push:
   workflow_dispatch:
     inputs:
       pypi_packages:
