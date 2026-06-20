@@ -8,7 +8,7 @@ on:
         required: false
         default: ''
   repository_dispatch:
-    types: [build-allinone]''
+    types: [build-allinone]
 
 jobs:
   build:
