@@ -2,13 +2,13 @@ name: Build All-in-one APK
 
 on:
   workflow_dispatch:
-  repository_dispatch:
-    types: [build-allinone]
     inputs:
       pypi_packages:
         description: 'Extra pip packages (comma separated)'
         required: false
         default: ''
+  repository_dispatch:
+    types: [build-allinone]''
 
 jobs:
   build:
