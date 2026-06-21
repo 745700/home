@@ -100,7 +100,7 @@ jobs:
 
       - name: Setup Gradle
         run: |
-          curl -s --max-time 180 https://services.gradle.org/distributions/gradle-8.4-bin.zip -o /tmp/gradle.zip
+          curl -sL --max-time 300 --retry 3 --retry-delay 10 https://services.gradle.org/distributions/gradle-8.4-bin.zip -o /tmp/gradle.zip
           unzip -q -o /tmp/gradle.zip -d /tmp/
           cd /tmp/apk
           /tmp/gradle-8.4/bin/gradle wrapper --gradle-version 8.4 2>&1 | tail -2
