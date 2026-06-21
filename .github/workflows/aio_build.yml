@@ -107,7 +107,7 @@ jobs:
           echo "APK project prepared"
 
           # Fix AndroidManifest.xml for AGP 8.x compatibility
-          sed -i 's|package="com.aion.chat"|xmlns:android="http://schemas.android.com/apk/res/android"|' /tmp/apk/app/src/main/AndroidManifest.xml
+          sed -i '/package="com.aion.chat"/d' /tmp/apk/app/src/main/AndroidManifest.xml
           sed -i 's|<activity android:name=".PythonLauncher">|<activity android:name=".PythonLauncher" android:exported="true">|' /tmp/apk/app/src/main/AndroidManifest.xml
           cat /tmp/apk/app/src/main/AndroidManifest.xml
       - name: Setup Gradle
