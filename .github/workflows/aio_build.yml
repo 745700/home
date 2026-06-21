@@ -90,18 +90,59 @@ jobs:
           set -e
           # Copy entire AionApp Android project to /tmp/apk/
           cp -r /tmp/aion-src/AionApp /tmp/apk
-          # The AionApp/build.gradle has com.android.application but settings.gradle
-          # is missing "include ':app'" -- add it now so app/ is a proper module
+          # Fix settings.gradle: add missing "include ':app'" so app/ is a Gradle module
           if ! grep -q "include ':app'" /tmp/apk/settings.gradle; then
             echo "include ':app'" >> /tmp/apk/settings.gradle
           fi
+          # Fix root build.gradle: remove com.android.application plugin (apply false)
+          # so ONLY the app/ module is built, not the root project
+          cat > /tmp/apk/build.gradle << 'BUILD'
+plugins {
+    id 'com.android.application' version '8.2.2' apply false
+}
+BUILD
+          # Fix app/build.gradle: use apply plugin form (no version needed, plugin resolved from root)
+          cat > /tmp/apk/app/build.gradle << 'APPBUILD'
+plugins {
+    id 'com.android.application' apply false
+}
+
+android {
+    namespace 'com.aion.chat'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.aion.chat"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "2.0.0-allinone"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    aaptOptions {
+        noCompress "py"
+        noCompress "txt"
+        noCompress "json"
+        noCompress "csv"
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.webkit:webkit:1.8.0'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+}
+APPBUILD
           # Verify structure
           echo "=== /tmp/apk/ contents ==="
           ls /tmp/apk/
           echo "=== settings.gradle ==="
           cat /tmp/apk/settings.gradle
-          echo "=== /tmp/apk/app/ contents ==="
-          ls /tmp/apk/app/
           echo "=== /tmp/apk/app/src/main/ ==="
           ls /tmp/apk/app/src/main/
           # Copy Python assets into Android assets dir
