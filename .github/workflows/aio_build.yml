@@ -24,11 +24,8 @@ jobs:
           cd android-sdk/cmdline-tools
           curl -s --max-time 120 -L https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdline-tools.zip
           unzip -q cmdline-tools.zip && mv cmdline-tools latest
-          echo "ANDROID_HOME=$PWD/.." >> $GITHUB_ENV
-          export ANDROID_HOME=$PWD/..
-          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
-          yes | sdkmanager --licenses > /dev/null 2>&1 || true
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" 2>&1 | tail -2
+          yes | ./latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
+          ./latest/bin/sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" 2>&1 | tail -2
           echo "SDK done"
 
       - name: Setup Android NDK
@@ -36,7 +33,6 @@ jobs:
           cd android-sdk
           curl -s --max-time 300 -L https://dl.google.com/android/repository/android-ndk-r26b-linux.zip -o ndk.zip
           unzip -q ndk.zip
-          echo "ANDROID_NDK=$PWD/android-ndk-r26b" >> $GITHUB_ENV
           echo "NDK done"
 
       - name: Download Python source
@@ -61,7 +57,7 @@ jobs:
 
       - name: Configure cross-compile Python
         run: |
-          export ANDROID_NDK=$ANDROID_NDK_HOME
+          export ANDROID_NDK=$GITHUB_WORKSPACE/android-sdk/android-ndk-r26b
           export PATH=$PATH:$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin
           cd /tmp/Python-3.13.0
           make clean 2>&1 | tail -1
@@ -70,6 +66,7 @@ jobs:
 
       - name: Cross-compile Python
         run: |
+          export ANDROID_NDK=$GITHUB_WORKSPACE/android-sdk/android-ndk-r26b
           cd /tmp/Python-3.13.0
           make -j$(nproc) 2>&1 | tail -5
           make install 2>&1 | tail -3
@@ -113,13 +110,14 @@ jobs:
 
       - name: Build APK
         env:
-          ANDROID_HOME: /tmp/android-sdk
+          ANDROID_HOME: $GITHUB_WORKSPACE/android-sdk
           ANDROID_SDK_ROOT: ""
         run: |
           unset ANDROID_SDK_ROOT
-          export ANDROID_HOME=/tmp/android-sdk
+          export ANDROID_HOME=$GITHUB_WORKSPACE/android-sdk
           cd /tmp/apk
           /tmp/gradle-8.4/bin/gradle clean assembleDebug --no-daemon
+
       - name: Upload APK to Release
         if: success()
         env:
