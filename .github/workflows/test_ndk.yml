@@ -1,0 +1,104 @@
+name: TestNDK
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - name: Setup Android SDK
+        run: |
+          mkdir -p android-sdk/cmdline-tools
+          cd android-sdk/cmdline-tools
+          curl -s --max-time 120 -L https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdline-tools.zip
+          unzip -q cmdline-tools.zip && mv cmdline-tools latest
+          echo "ANDROID_HOME=$PWD/.." >> $GITHUB_ENV
+          export ANDROID_HOME=$PWD/..
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" 2>&1 | tail -2
+          echo "SDK done"
+
+      - name: Setup Android NDK
+        run: |
+          cd android-sdk
+          curl -s --max-time 300 -L https://dl.google.com/android/repository/android-ndk-r26b-linux.zip -o ndk.zip
+          unzip -q ndk.zip
+          echo "ANDROID_NDK=$PWD/android-ndk-r26b" >> $GITHUB_ENV
+          ls $ANDROID_NDK/toolchains/llvm/prebuilt/
+
+      - name: Download Python
+        run: |
+          curl -s --max-time 120 -L https://www.python.org/ftp/python/3.13.0/Python-3.13.0.tgz -o /tmp/Python-3.13.0.tgz
+          ls -lh /tmp/Python-3.13.0.tgz
+
+      - name: Build Python
+        run: |
+          export ANDROID_NDK=$ANDROID_NDK_HOME
+          export PATH=$PATH:$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin
+          cd /tmp
+          tar -xf Python-3.13.0.tgz
+          cd Python-3.13.0
+          ./configure --host=aarch64-linux-android --target=aarch64-linux-android --prefix=/tmp/pyinstall --disable-ipv6 --without-ensurepip --disable-test-modules 2>&1 | tail -3
+          make -j$(nproc) 2>&1 | tail -3
+          make install 2>&1 | tail -3
+          ls /tmp/pyinstall/bin/
+
+      - name: Build APK project
+        run: |
+          mkdir -p /tmp/apk/app/src/main/java/com/aion/chat
+          cat > /tmp/apk/app/src/main/java/com/aion/chat/PythonLauncher.java << 'JAVAFILE'
+package com.aion.chat;
+import android.app.Activity;
+import android.os.Bundle;
+import android.widget.TextView;
+import android.widget.ScrollView;
+import android.widget.LinearLayout;
+import java.io.*;
+public class PythonLauncher extends Activity {
+    private Process backend;
+    @Override
+    protected void onCreate(Bundle b) {
+        super.onCreate(b);
+        TextView log = new TextView(this);
+        log.setTextSize(11);
+        log.setPadding(16,16,16,16);
+        ScrollView sc = new ScrollView(this);
+        sc.addView(log);
+        LinearLayout ll = new LinearLayout(this);
+        ll.setOrientation(LinearLayout.VERTICAL);
+        ll.addView(sc);
+        setContentView(ll);
+        log.append("Starting...");
+        new Thread(() -> {
+            try {
+                File pyBin = new File(getFilesDir(), "python/python3.13");
+                if (pyBin.exists()) {
+                    log.append("\nPython: " + pyBin.length() + " bytes");
+                } else {
+                    log.append("\nPython not found");
+                }
+            } catch (Exception e) { log.append("\nError: " + e.getMessage()); }
+        }).start();
+    }
+}
+JAVAFILE
+          echo "Java file created"
+
+      - name: Upload APK
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Would upload APK here"
