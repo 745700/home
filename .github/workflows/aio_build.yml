@@ -86,18 +86,23 @@ jobs:
 
       - name: Prepare APK project
         run: |
-          mkdir -p /tmp/apk/app/src/main/assets/python/lib/python3.13/site-packages
-          mkdir -p /tmp/apk/app/src/main/assets/aion-chat
-          cp /tmp/pyinstall/bin/python3.13 /tmp/apk/app/src/main/assets/python/
-          cp -r /tmp/pyinstall/lib/python3.13/* /tmp/apk/app/src/main/assets/python/lib/python3.13/
-          cp -r /tmp/pyenv/lib/python3.13/site-packages/* /tmp/apk/app/src/main/assets/python/lib/python3.13/site-packages/ 2>/dev/null || true
-          cp -r /tmp/aion-src/aion-chat/* /tmp/apk/app/src/main/assets/aion-chat/
-          cp -r /tmp/aion-src/AionApp/app/src/main/* /tmp/apk/app/src/main/
+          # Copy Android project structure: AionApp/ -> /tmp/apk/
+          cp -r /tmp/aion-src/AionApp/app /tmp/apk/
           cp /tmp/aion-src/AionApp/build.gradle /tmp/apk/
           cp /tmp/aion-src/AionApp/gradle.properties /tmp/apk/
           cp /tmp/aion-src/AionApp/settings.gradle /tmp/apk/
           mkdir -p /tmp/apk/gradle/wrapper
           cp /tmp/aion-src/AionApp/gradle/wrapper/gradle-wrapper.properties /tmp/apk/gradle/wrapper/ 2>/dev/null || true
+          # Copy Python assets into the Android assets dir
+          mkdir -p /tmp/apk/app/src/main/assets/python/lib/python3.13/site-packages
+          cp /tmp/pyinstall/bin/python3.13 /tmp/apk/app/src/main/assets/python/
+          cp -r /tmp/pyinstall/lib/python3.13/* /tmp/apk/app/src/main/assets/python/lib/python3.13/
+          cp -r /tmp/pyenv/lib/python3.13/site-packages/* /tmp/apk/app/src/main/assets/python/lib/python3.13/site-packages/ 2>/dev/null || true
+          # Copy aion-chat web frontend
+          mkdir -p /tmp/apk/app/src/main/assets/aion-chat
+          cp -r /tmp/aion-src/aion-chat/* /tmp/apk/app/src/main/assets/aion-chat/
+          # Verify
+          ls -la /tmp/apk/
           ls -la /tmp/apk/app/src/main/
           echo "APK project prepared"
 
