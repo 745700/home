@@ -1,0 +1,40 @@
+name: TestMakeAfterNopip
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Android NDK
+        run: |
+          mkdir -p android-sdk
+          curl -s --max-time 300 -L https://dl.google.com/android/repository/android-ndk-r26b-linux.zip -o ndk.zip
+          unzip -q ndk.zip
+          echo "ANDROID_NDK=$PWD/android-ndk-r26b" >> $GITHUB_ENV
+          echo "NDK done"
+
+      - name: Download Python source
+        run: |
+          curl -s --max-time 120 -L https://www.python.org/ftp/python/3.13.0/Python-3.13.0.tgz -o /tmp/Python-3.13.0.tgz
+          echo "Downloaded"
+
+      - name: Configure Python
+        run: |
+          export ANDROID_NDK=$ANDROID_NDK_HOME
+          export PATH=$PATH:$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin
+          cd /tmp
+          tar -xf Python-3.13.0.tgz
+          cd Python-3.13.0
+          ./configure --host=aarch64-linux-android --target=aarch64-linux-android --prefix=/tmp/pyinstall --disable-ipv6 --without-ensurepip --disable-test-modules 2>&1 | tail -3
+
+      - name: Compile Python
+        run: |
+          cd /tmp/Python-3.13.0
+          make -j$(nproc) 2>&1 | tail -3
+          make install 2>&1 | tail -2
+          echo "Python built and installed"
