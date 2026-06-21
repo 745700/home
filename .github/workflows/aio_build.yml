@@ -74,6 +74,7 @@ jobs:
           make -j$(nproc) 2>&1 | tail -5
           make install 2>&1 | tail -3
           ls /tmp/pyinstall/bin/
+          file /tmp/pyinstall/bin/python3.13
           echo "Python built"
 
       - name: Install pip packages
