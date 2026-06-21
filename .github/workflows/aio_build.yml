@@ -169,7 +169,7 @@ APPBUILD
       - name: Upload APK to Release
         if: success()
         env:
-          GH_TOKEN: ${ secrets.GITHUB_TOKEN }
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
           APK=/tmp/apk/app/build/outputs/apk/debug/app-debug.apk
