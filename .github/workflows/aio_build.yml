@@ -124,8 +124,9 @@ jobs:
           export ANDROID_NDK_HOME=$ANDROID_NDK_HOME
           export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
           cd /tmp/apk
+          ls -la src/main/
           set -o pipefail
-          /tmp/gradle-8.4/bin/gradle assembleDebug --no-daemon
+          /tmp/gradle-8.4/bin/gradle clean assembleDebug --no-daemon
 
       - name: Upload APK to Release
         if: success()
