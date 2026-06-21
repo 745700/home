@@ -1,0 +1,26 @@
+name: TestHeredoc
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create file via heredoc
+        run: |
+          cat > /tmp/test.java << 'EOF'
+package com.aion.chat;
+public class Test {
+    public static void main(String[] args) {
+        System.out.println("Hello");
+    }
+}
+EOF
+          cat /tmp/test.java
+          echo "---done---"
