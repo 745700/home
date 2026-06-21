@@ -182,10 +182,9 @@ APPBUILD
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -e
           APK=/tmp/apk/app/build/outputs/apk/debug/app-debug.apk
-          if [ -f "$APK" ]; then
-            echo "APK: $(du -sh $APK | cut -f1)"
-            gh release view v2.0.0-allinone --repo 745700/home 2>/dev/null &&               gh release upload v2.0.0-allinone "$APK" --repo 745700/home --clobber ||               gh release create v2.0.0-allinone --repo 745700/home                 --title "Aion Home All-in-one APK"                 --notes "Built with Python 3.13 from source + Android NDK" "$APK"
-          else
-            find /tmp/apk -name "*.apk" 2>/dev/null || echo "NO APK FOUND"
-          fi
+          if [ ! -f "$APK" ]; then find /tmp/apk -name "*.apk" 2>/dev/null && exit 1 || { echo "NO APK FOUND"; exit 1; }; fi
+          echo "APK: $(du -sh $APK | cut -f1)"
+          gh release view v2.0.0-allinone --repo 745700/home 2>/dev/null             && gh release upload v2.0.0-allinone "$APK" --repo 745700/home --clobber             || gh release create v2.0.0-allinone --repo 745700/home --title "Aion Home All-in-one APK" --notes "Built with Python 3.13 from source + Android NDK" "$APK"
+          echo "Upload done" 
