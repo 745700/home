@@ -44,27 +44,37 @@ jobs:
           curl -s --max-time 120 -L https://www.python.org/ftp/python/3.13.0/Python-3.13.0.tgz -o /tmp/Python-3.13.0.tgz
           ls -lh /tmp/Python-3.13.0.tgz
 
+      - name: Build native Python (for --with-build-python)
+        run: |
+          cd /tmp
+          tar -xf Python-3.13.0.tgz
+          cd Python-3.13.0
+          ./configure --prefix=/tmp/pybuild --disable-ipv6 --without-ensurepip --disable-test-modules
+          make -j$(nproc)
+          make install
+          echo "Native Python built"
+
       - name: Configure Python
         run: |
           export ANDROID_NDK=$ANDROID_NDK_HOME
           export PATH=$PATH:$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin
-          cd /tmp
-          tar -xf Python-3.13.0.tgz
-          cd Python-3.13.0
-          ./configure --build=x86_64-pc-linux-gnu --host=aarch64-linux-android --with-build-python=/usr/bin/python3 --prefix=/tmp/pyinstall --disable-ipv6 --without-ensurepip --disable-test-modules 2>&1 | tail -3
+          cd /tmp/Python-3.13.0
+          make clean
+          ./configure --build=x86_64-pc-linux-gnu --host=aarch64-linux-android --with-build-python=/tmp/pybuild/bin/python3 --prefix=/tmp/pyinstall --disable-ipv6 --without-ensurepip --disable-test-modules
           echo "Configured"
 
       - name: Compile Python
         run: |
           cd /tmp/Python-3.13.0
-          make -j$(nproc) 2>&1 | tail -5
-          make install 2>&1 | tail -3
+          make -j$(nproc)
+          make install
           ls /tmp/pyinstall/bin/
+          file /tmp/pyinstall/bin/python3.13
           echo "Python built"
 
       - name: Install pip packages
         run: |
-          /tmp/pyinstall/bin/python3 -m pip install --no-cache-dir --prefix=/tmp/pyenv fastapi uvicorn httpx aiosqlite pydantic pillow aiofiles websockets python-multipart jinja2 2>&1 | tail -5
+          python3 -m pip install --no-cache-dir --only-binary=:all: --target=/tmp/pyinstall/lib/python3.13/site-packages fastapi uvicorn httpx aiosqlite pydantic aiofiles websockets python-multipart jinja2
           echo "Packages installed"
 
       - name: Download Aion backend
