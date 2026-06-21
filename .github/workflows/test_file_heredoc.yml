@@ -1,0 +1,17 @@
+name: TestFileHeredoc
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          cat > /tmp/test.txt << ENDOFFILE
+hello world
+this is a test
+ENDOFFF
+          cat /tmp/test.txt
+          echo "done"
