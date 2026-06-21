@@ -1,0 +1,41 @@
+name: TestMedium
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - name: Setup Android SDK
+        run: |
+          mkdir -p android-sdk/cmdline-tools
+          cd android-sdk/cmdline-tools
+          curl -s --max-time 120 -L https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdline-tools.zip
+          unzip -q cmdline-tools.zip && mv cmdline-tools latest
+          echo "ANDROID_HOME=$PWD/.." >> $GITHUB_ENV
+          export ANDROID_HOME=$PWD/..
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" 2>&1 | tail -2
+
+      - name: Create project
+        run: |
+          mkdir -p /tmp/apk/app/src/main/java/com/aion/chat
+          printf '%s\n' 'package com.aion.chat;' > /tmp/apk/app/src/main/java/com/aion/chat/Test.java
+          printf '%s\n' 'public class Test {}' >> /tmp/apk/app/src/main/java/com/aion/chat/Test.java
+          echo "Project created"
+
+      - name: Download Aion backend
+        run: |
+          git clone --depth=1 https://github.com/745700/home.git /tmp/aion-src 2>&1 | tail -2
+          ls /tmp/aion-src/ | head -5
