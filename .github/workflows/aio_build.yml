@@ -95,12 +95,12 @@ jobs:
           cp -r /tmp/pyinstall/lib/python3.13/* /tmp/apk/app/src/main/assets/python/lib/python3.13/
           cp -r /tmp/pyenv/lib/python3.13/site-packages/* /tmp/apk/app/src/main/assets/python/lib/python3.13/site-packages/ 2>/dev/null || true
           cp -r /tmp/aion-src/aion-chat/* /tmp/apk/app/src/main/assets/aion-chat/
-          cp -r /tmp/aion-src/AionApp/app/src/main/java /tmp/apk/app/src/main/
-          cp -r /tmp/aion-src/AionApp/app/src/main/res /tmp/apk/app/src/main/
+          cp -r /tmp/aion-src/AionApp/app/src/main/* /tmp/apk/app/src/main/
           cp /tmp/aion-src/AionApp/build.gradle /tmp/apk/
           cp /tmp/aion-src/AionApp/gradle.properties /tmp/apk/
           cp /tmp/aion-src/AionApp/settings.gradle /tmp/apk/
           mkdir -p /tmp/apk/gradle/wrapper
+          cp /tmp/aion-src/AionApp/gradle/wrapper/gradle-wrapper.properties /tmp/apk/gradle/wrapper/ 2>/dev/null || true
           echo "APK project prepared"
 
       - name: Setup Gradle
