@@ -76,7 +76,7 @@ jobs:
 
       - name: Install pip packages
         run: |
-          python3 -m pip install --no-cache-dir --target=/tmp/pyinstall/lib/python3.13/site-packages fastapi uvicorn httpx aiosqlite pydantic pillow aiofiles websockets python-multipart jinja2
+          python3 -m pip install --no-cache-dir --only-binary=:all: --target=/tmp/pyinstall/lib/python3.13/site-packages fastapi uvicorn httpx aiosqlite pydantic aiofiles websockets python-multipart jinja2
           echo "Packages installed"
 
       - name: Download Aion backend
