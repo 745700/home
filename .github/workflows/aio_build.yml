@@ -111,7 +111,8 @@ jobs:
           curl -sL --max-time 300 --retry 3 --retry-delay 10 https://services.gradle.org/distributions/gradle-8.4-bin.zip -o /tmp/gradle.zip
           ls -lh /tmp/gradle.zip
           unzip -q -o /tmp/gradle.zip -d /tmp/
-          cd /tmp/apk
+          ls -la /tmp/apk/app/src/main/
+          /tmp/gradle-8.4/bin/gradle clean assembleDebug --no-daemon
           /tmp/gradle-8.4/bin/gradle wrapper --gradle-version 8.4 2>&1 | tail -2
           echo "Gradle ready"
 
@@ -124,9 +125,6 @@ jobs:
           export ANDROID_NDK_HOME=$ANDROID_NDK_HOME
           export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
           cd /tmp/apk
-          ls -la src/main/
-          set -o pipefail
-          /tmp/gradle-8.4/bin/gradle clean assembleDebug --no-daemon
 
       - name: Upload APK to Release
         if: success()
