@@ -1,0 +1,39 @@
+name: TestNDK
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - name: Setup Android SDK
+        run: |
+          mkdir -p android-sdk/cmdline-tools
+          cd android-sdk/cmdline-tools
+          curl -s --max-time 120 -L https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdline-tools.zip
+          unzip -q cmdline-tools.zip && mv cmdline-tools latest
+          echo "ANDROID_HOME=$PWD/.." >> $GITHUB_ENV
+          export ANDROID_HOME=$PWD/..
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" 2>&1 | tail -2
+          echo "SDK done"
+
+      - name: Setup Android NDK
+        run: |
+          cd android-sdk
+          curl -s --max-time 300 -L https://dl.google.com/android/repository/android-ndk-r26b-linux.zip -o ndk.zip
+          unzip -q ndk.zip
+          echo "ANDROID_NDK=$PWD/android-ndk-r26b" >> $GITHUB_ENV
+          ls $ANDROID_NDK/toolchains/llvm/prebuilt/
+          echo "NDK done"
