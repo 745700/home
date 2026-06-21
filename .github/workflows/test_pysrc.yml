@@ -1,0 +1,54 @@
+name: TestPythonSrc
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - name: Setup Android SDK
+        run: |
+          mkdir -p android-sdk/cmdline-tools
+          cd android-sdk/cmdline-tools
+          curl -s --max-time 120 -L https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdline-tools.zip
+          unzip -q cmdline-tools.zip && mv cmdline-tools latest
+          echo "ANDROID_HOME=$PWD/.." >> $GITHUB_ENV
+          export ANDROID_HOME=$PWD/..
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" 2>&1 | tail -2
+          echo "SDK done"
+
+      - name: Setup Android NDK
+        run: |
+          cd android-sdk
+          curl -s --max-time 300 -L https://dl.google.com/android/repository/android-ndk-r26b-linux.zip -o ndk.zip
+          unzip -q ndk.zip
+          echo "ANDROID_NDK=$PWD/android-ndk-r26b" >> $GITHUB_ENV
+          echo "NDK done"
+
+      - name: Download Python source
+        run: |
+          curl -s --max-time 120 -L https://www.python.org/ftp/python/3.13.0/Python-3.13.0.tgz -o /tmp/Python-3.13.0.tgz
+          ls -lh /tmp/Python-3.13.0.tgz
+          echo "Download done"
+
+      - name: Configure Python
+        run: |
+          export ANDROID_NDK=$ANDROID_NDK_HOME
+          export PATH=$PATH:$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin
+          cd /tmp
+          tar -xf Python-3.13.0.tgz
+          cd Python-3.13.0
+          ./configure --host=aarch64-linux-android --target=aarch64-linux-android --prefix=/tmp/pyinstall --disable-ipv6 --without-ensurepip --disable-test-modules 2>&1 | tail -3
+          echo "Configure done"
