@@ -96,14 +96,12 @@ jobs:
           cp -r /tmp/pyenv/lib/python3.13/site-packages/* /tmp/apk/app/src/main/assets/python/lib/python3.13/site-packages/ 2>/dev/null || true
           cp -r /tmp/aion-src/aion-chat/* /tmp/apk/app/src/main/assets/aion-chat/
           cp -r /tmp/aion-src/AionApp/app/src/main/* /tmp/apk/app/src/main/
-          ls -la /tmp/apk/app/src/main/
-          ls -la /tmp/aion-src/AionApp/app/src/main/
-          find /tmp/apk/app/src/main/ -name "AndroidManifest.xml"
           cp /tmp/aion-src/AionApp/build.gradle /tmp/apk/
           cp /tmp/aion-src/AionApp/gradle.properties /tmp/apk/
           cp /tmp/aion-src/AionApp/settings.gradle /tmp/apk/
           mkdir -p /tmp/apk/gradle/wrapper
           cp /tmp/aion-src/AionApp/gradle/wrapper/gradle-wrapper.properties /tmp/apk/gradle/wrapper/ 2>/dev/null || true
+          ls -la /tmp/apk/app/src/main/
           echo "APK project prepared"
 
       - name: Setup Gradle
@@ -111,20 +109,12 @@ jobs:
           curl -sL --max-time 300 --retry 3 --retry-delay 10 https://services.gradle.org/distributions/gradle-8.4-bin.zip -o /tmp/gradle.zip
           ls -lh /tmp/gradle.zip
           unzip -q -o /tmp/gradle.zip -d /tmp/
-          ls -la /tmp/apk/app/src/main/
-          /tmp/gradle-8.4/bin/gradle clean assembleDebug --no-daemon
-          /tmp/gradle-8.4/bin/gradle wrapper --gradle-version 8.4 2>&1 | tail -2
           echo "Gradle ready"
 
       - name: Build APK
-        env:
-          ANDROID_HOME: /tmp/android-sdk
-          ANDROID_NDK_HOME: $ANDROID_NDK_HOME
         run: |
-          export ANDROID_HOME=/tmp/android-sdk
-          export ANDROID_NDK_HOME=$ANDROID_NDK_HOME
-          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
           cd /tmp/apk
+          /tmp/gradle-8.4/bin/gradle clean assembleDebug --no-daemon
 
       - name: Upload APK to Release
         if: success()
