@@ -88,24 +88,30 @@ jobs:
       - name: Prepare APK project
         run: |
           set -e
-          # List what was cloned to understand structure
-          ls /tmp/aion-src/
-          ls /tmp/aion-src/AionApp/
-          # Copy Android project: AionApp/ -> /tmp/apk/
+          # Clean any leftover /tmp/apk from previous failed runs
+          rm -rf /tmp/apk
+          # Clone Android project structure
+          mkdir -p /tmp/apk
           cp -r /tmp/aion-src/AionApp/app /tmp/apk/
           cp /tmp/aion-src/AionApp/build.gradle /tmp/apk/
           cp /tmp/aion-src/AionApp/gradle.properties /tmp/apk/
           cp /tmp/aion-src/AionApp/settings.gradle /tmp/apk/
+          cp /tmp/aion-src/AionApp/gradlew /tmp/apk/ || true
+          cp /tmp/aion-src/AionApp/gradlew.bat /tmp/apk/ || true
           mkdir -p /tmp/apk/gradle/wrapper
           cp /tmp/aion-src/AionApp/gradle/wrapper/gradle-wrapper.properties /tmp/apk/gradle/wrapper/ || true
           # Verify structure
+          echo "=== /tmp/apk/ contents ==="
           ls /tmp/apk/
+          echo "=== /tmp/apk/app/ contents ==="
           ls /tmp/apk/app/
+          echo "=== /tmp/apk/app/src/main/ contents ==="
+          ls /tmp/apk/app/src/main/
           # Copy Python assets into Android assets dir
           mkdir -p /tmp/apk/app/src/main/assets/python/lib/python3.13/site-packages
           cp /tmp/pyinstall/bin/python3.13 /tmp/apk/app/src/main/assets/python/
           cp -r /tmp/pyinstall/lib/python3.13/* /tmp/apk/app/src/main/assets/python/lib/python3.13/
-          cp -r /tmp/pyenv/lib/python3.13/site-packages/* /tmp/apk/app/src/main/assets/python/lib/python3.13/site-packages/ || true
+          cp -r /tmp/pyinstall/lib/python3.13/site-packages/* /tmp/apk/app/src/main/assets/python/lib/python3.13/site-packages/ || true
           # Copy aion-chat web frontend
           mkdir -p /tmp/apk/app/src/main/assets/aion-chat
           cp -r /tmp/aion-src/aion-chat/* /tmp/apk/app/src/main/assets/aion-chat/
