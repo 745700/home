@@ -1,0 +1,14 @@
+name: TestPrintf
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          printf '%s\n' 'package com.aion.chat;' 'public class Test {}' > /tmp/Test.java
+          cat /tmp/Test.java
+          echo "done"
