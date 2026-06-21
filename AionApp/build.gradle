@@ -1,4 +1,34 @@
-// Top-level build file
 plugins {
-    id 'com.android.application' version '8.2.2' apply false
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.aion.chat'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.aion.chat"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "2.0.0-allinone"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    aaptOptions {
+        noCompress "py"
+        noCompress "txt"
+        noCompress "json"
+        noCompress "csv"
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.webkit:webkit:1.8.0'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 }
