@@ -94,7 +94,8 @@ jobs:
           cp -r /tmp/aion-src/AionApp/app/src/main/res /tmp/apk/app/src/main/
           cp /tmp/aion-src/AionApp/build.gradle /tmp/apk/
           cp /tmp/aion-src/AionApp/gradle.properties /tmp/apk/
-          cp /tmp/aion-src/AionApp/settings.gradle /tmp/apk/
+          cp /tmp/aion-src/AionApp/settings.gradle /tmp/apk/settings.gradle
+          echo "include ':app'" >> /tmp/apk/settings.gradle
           mkdir -p /tmp/apk/gradle/wrapper
           echo "APK project prepared"
 
