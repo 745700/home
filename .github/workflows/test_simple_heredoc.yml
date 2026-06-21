@@ -1,0 +1,14 @@
+name: TestSimpleHeredoc
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "line1" > /tmp/test.txt
+          cat /tmp/test.txt
+          echo "done"
