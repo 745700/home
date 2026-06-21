@@ -60,56 +60,62 @@ jobs:
           export ANDROID_NDK=$GITHUB_WORKSPACE/android-sdk/android-ndk-r26b
           export PATH=$PATH:$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin
           cd /tmp/Python-3.13.0
-          make clean 2>&1 | tail -1
-          ./configure --build=x86_64-pc-linux-gnu --host=aarch64-linux-android --with-build-python=/tmp/pybuild/bin/python3 --prefix=/tmp/pyinstall --disable-ipv6 --without-ensurepip --disable-test-modules 2>&1 | tail -5
+          make clean
+          ./configure --build=x86_64-pc-linux-gnu --host=aarch64-linux-android --with-build-python=/tmp/pybuild/bin/python3 --prefix=/tmp/pyinstall --disable-ipv6 --without-ensurepip --disable-test-modules
           echo "Cross-configured"
 
       - name: Cross-compile Python
         run: |
           export ANDROID_NDK=$GITHUB_WORKSPACE/android-sdk/android-ndk-r26b
           cd /tmp/Python-3.13.0
-          make -j$(nproc) 2>&1 | tail -5
-          make install 2>&1 | tail -3
+          make -j$(nproc)
+          make install
           ls /tmp/pyinstall/bin/
           file /tmp/pyinstall/bin/python3.13
           echo "Python built"
 
       - name: Install pip packages
         run: |
-          /tmp/pyinstall/bin/python3 -m pip install --no-cache-dir --prefix=/tmp/pyenv fastapi uvicorn httpx aiosqlite pydantic pillow aiofiles websockets python-multipart jinja2 2>&1 | tail -5
+          /tmp/pyinstall/bin/python3 -m pip install --no-cache-dir --prefix=/tmp/pyenv fastapi uvicorn httpx aiosqlite pydantic pillow aiofiles websockets python-multipart jinja2
           echo "Packages installed"
 
       - name: Download Aion backend
         run: |
           rm -rf /tmp/aion-src
-          git clone --depth=1 https://github.com/745700/home.git /tmp/aion-src 2>&1 | tail -2
+          git clone --depth=1 https://github.com/745700/home.git /tmp/aion-src
+          ls /tmp/aion-src/
 
       - name: Prepare APK project
         run: |
-          # Copy Android project structure: AionApp/ -> /tmp/apk/
+          set -e
+          # List what was cloned to understand structure
+          ls /tmp/aion-src/
+          ls /tmp/aion-src/AionApp/
+          # Copy Android project: AionApp/ -> /tmp/apk/
           cp -r /tmp/aion-src/AionApp/app /tmp/apk/
           cp /tmp/aion-src/AionApp/build.gradle /tmp/apk/
           cp /tmp/aion-src/AionApp/gradle.properties /tmp/apk/
           cp /tmp/aion-src/AionApp/settings.gradle /tmp/apk/
           mkdir -p /tmp/apk/gradle/wrapper
-          cp /tmp/aion-src/AionApp/gradle/wrapper/gradle-wrapper.properties /tmp/apk/gradle/wrapper/ 2>/dev/null || true
-          # Copy Python assets into the Android assets dir
+          cp /tmp/aion-src/AionApp/gradle/wrapper/gradle-wrapper.properties /tmp/apk/gradle/wrapper/ || true
+          # Verify structure
+          ls /tmp/apk/
+          ls /tmp/apk/app/
+          # Copy Python assets into Android assets dir
           mkdir -p /tmp/apk/app/src/main/assets/python/lib/python3.13/site-packages
           cp /tmp/pyinstall/bin/python3.13 /tmp/apk/app/src/main/assets/python/
           cp -r /tmp/pyinstall/lib/python3.13/* /tmp/apk/app/src/main/assets/python/lib/python3.13/
-          cp -r /tmp/pyenv/lib/python3.13/site-packages/* /tmp/apk/app/src/main/assets/python/lib/python3.13/site-packages/ 2>/dev/null || true
+          cp -r /tmp/pyenv/lib/python3.13/site-packages/* /tmp/apk/app/src/main/assets/python/lib/python3.13/site-packages/ || true
           # Copy aion-chat web frontend
           mkdir -p /tmp/apk/app/src/main/assets/aion-chat
           cp -r /tmp/aion-src/aion-chat/* /tmp/apk/app/src/main/assets/aion-chat/
-          # Verify
-          ls -la /tmp/apk/
-          ls -la /tmp/apk/app/src/main/
-          echo "APK project prepared"
-
-          # Fix AndroidManifest.xml for AGP 8.x compatibility
+          # Fix AndroidManifest.xml for AGP 8.x + Android 12+
           sed -i '/package="com.aion.chat"/d' /tmp/apk/app/src/main/AndroidManifest.xml
           sed -i 's|<activity android:name=".PythonLauncher">|<activity android:name=".PythonLauncher" android:exported="true">|' /tmp/apk/app/src/main/AndroidManifest.xml
+          echo "=== Fixed AndroidManifest.xml ==="
           cat /tmp/apk/app/src/main/AndroidManifest.xml
+          echo "APK project prepared"
+
       - name: Setup Gradle
         run: |
           curl -sL --max-time 300 --retry 3 --retry-delay 10 https://services.gradle.org/distributions/gradle-8.4-bin.zip -o /tmp/gradle.zip
