@@ -96,6 +96,9 @@ jobs:
           cp -r /tmp/pyenv/lib/python3.13/site-packages/* /tmp/apk/app/src/main/assets/python/lib/python3.13/site-packages/ 2>/dev/null || true
           cp -r /tmp/aion-src/aion-chat/* /tmp/apk/app/src/main/assets/aion-chat/
           cp -r /tmp/aion-src/AionApp/app/src/main/* /tmp/apk/app/src/main/
+          ls -la /tmp/apk/app/src/main/
+          ls -la /tmp/aion-src/AionApp/app/src/main/
+          find /tmp/apk/app/src/main/ -name "AndroidManifest.xml"
           cp /tmp/aion-src/AionApp/build.gradle /tmp/apk/
           cp /tmp/aion-src/AionApp/gradle.properties /tmp/apk/
           cp /tmp/aion-src/AionApp/settings.gradle /tmp/apk/
