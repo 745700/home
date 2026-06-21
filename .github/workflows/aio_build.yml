@@ -112,10 +112,14 @@ jobs:
           echo "Gradle ready"
 
       - name: Build APK
+        env:
+          ANDROID_HOME: /tmp/android-sdk
+          ANDROID_SDK_ROOT: ""
         run: |
+          unset ANDROID_SDK_ROOT
+          export ANDROID_HOME=/tmp/android-sdk
           cd /tmp/apk
           /tmp/gradle-8.4/bin/gradle clean assembleDebug --no-daemon
-
       - name: Upload APK to Release
         if: success()
         env:
