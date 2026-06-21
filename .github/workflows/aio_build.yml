@@ -90,43 +90,20 @@ jobs:
           set -e
           # Copy entire AionApp Android project to /tmp/apk/
           cp -r /tmp/aion-src/AionApp /tmp/apk
-          # AionApp/build.gradle applies 'android.application' at the root project level,
-          # so we need 'include ":app"' to make the app/ subdirectory a module.
-          # Also remove the root-level android plugin and make app/ the actual module.
-          # Rewrite settings.gradle to include :app
-          cat > /tmp/apk/settings.gradle << 'SETTINGS'
-pluginManagement {
-    repositories {
-        google()
-        mavenCentral()
-        gradlePluginPortal()
-    }
-}
-
-dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
-    repositories {
-        google()
-        mavenCentral()
-    }
-}
-
-rootProject.name = "AionHome"
-include ':app'
-SETTINGS
-          # Rewrite root build.gradle to NOT apply android.application (only the app/ module should)
-          cat > /tmp/apk/build.gradle << 'BUILD'
-plugins {
-    id 'com.android.application' version '8.2.2' apply false
-}
-BUILD
+          # The AionApp/build.gradle has com.android.application but settings.gradle
+          # is missing "include ':app'" -- add it now so app/ is a proper module
+          if ! grep -q "include ':app'" /tmp/apk/settings.gradle; then
+            echo "include ':app'" >> /tmp/apk/settings.gradle
+          fi
           # Verify structure
           echo "=== /tmp/apk/ contents ==="
           ls /tmp/apk/
-          echo "=== /tmp/apk/app/ contents ==="
-          ls /tmp/apk/app/
           echo "=== settings.gradle ==="
           cat /tmp/apk/settings.gradle
+          echo "=== /tmp/apk/app/ contents ==="
+          ls /tmp/apk/app/
+          echo "=== /tmp/apk/app/src/main/ ==="
+          ls /tmp/apk/app/src/main/
           # Copy Python assets into Android assets dir
           mkdir -p /tmp/apk/app/src/main/assets/python/lib/python3.13/site-packages
           cp /tmp/pyinstall/bin/python3.13 /tmp/apk/app/src/main/assets/python/
