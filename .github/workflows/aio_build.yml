@@ -88,20 +88,13 @@ jobs:
       - name: Prepare APK project
         run: |
           set -e
-          # Copy entire AionApp Android project to /tmp/apk/
           cp -r /tmp/aion-src/AionApp /tmp/apk
-          # Fix settings.gradle: add missing "include ':app'" so app/ is a Gradle module
-          if ! grep -q "include ':app'" /tmp/apk/settings.gradle; then
-            echo "include ':app'" >> /tmp/apk/settings.gradle
-          fi
-          # Fix root build.gradle: remove com.android.application plugin (apply false)
-          # so ONLY the app/ module is built, not the root project
+          if ! grep -q "include ':app'" /tmp/apk/settings.gradle; then echo "include ':app'" >> /tmp/apk/settings.gradle; fi
           cat > /tmp/apk/build.gradle << 'BUILD'
 plugins {
     id 'com.android.application' version '8.2.2' apply false
 }
 BUILD
-          # Fix app/build.gradle: use apply plugin form (no version needed, plugin resolved from root)
           cat > /tmp/apk/app/build.gradle << 'APPBUILD'
 plugins {
     id 'com.android.application' apply false
@@ -138,22 +131,18 @@ dependencies {
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 }
 APPBUILD
-          # Verify structure
           echo "=== /tmp/apk/ contents ==="
           ls /tmp/apk/
           echo "=== settings.gradle ==="
           cat /tmp/apk/settings.gradle
           echo "=== /tmp/apk/app/src/main/ ==="
           ls /tmp/apk/app/src/main/
-          # Copy Python assets into Android assets dir
           mkdir -p /tmp/apk/app/src/main/assets/python/lib/python3.13/site-packages
           cp /tmp/pyinstall/bin/python3.13 /tmp/apk/app/src/main/assets/python/
           cp -r /tmp/pyinstall/lib/python3.13/* /tmp/apk/app/src/main/assets/python/lib/python3.13/
           cp -r /tmp/pyinstall/lib/python3.13/site-packages/* /tmp/apk/app/src/main/assets/python/lib/python3.13/site-packages/ || true
-          # Copy aion-chat web frontend
           mkdir -p /tmp/apk/app/src/main/assets/aion-chat
           cp -r /tmp/aion-src/aion-chat/* /tmp/apk/app/src/main/assets/aion-chat/
-          # Fix AndroidManifest.xml for AGP 8.x + Android 12+
           sed -i '/package="com.aion.chat"/d' /tmp/apk/app/src/main/AndroidManifest.xml
           sed -i 's|<activity android:name=".PythonLauncher">|<activity android:name=".PythonLauncher" android:exported="true">|' /tmp/apk/app/src/main/AndroidManifest.xml
           echo "=== Fixed AndroidManifest.xml ==="
@@ -180,11 +169,15 @@ APPBUILD
       - name: Upload APK to Release
         if: success()
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${ secrets.GITHUB_TOKEN }
         run: |
           set -e
           APK=/tmp/apk/app/build/outputs/apk/debug/app-debug.apk
-          if [ ! -f "$APK" ]; then find /tmp/apk -name "*.apk" 2>/dev/null && exit 1 || { echo "NO APK FOUND"; exit 1; }; fi
-          echo "APK: $(du -sh $APK | cut -f1)"
-          gh release view v2.0.0-allinone --repo 745700/home 2>/dev/null             && gh release upload v2.0.0-allinone "$APK" --repo 745700/home --clobber             || gh release create v2.0.0-allinone --repo 745700/home --title "Aion Home All-in-one APK" --notes "Built with Python 3.13 from source + Android NDK" "$APK"
-          echo "Upload done" 
+          if [ ! -f "$APK" ]; then find /tmp/apk -name "*.apk" 2>/dev/null; exit 1; fi
+          echo "APK: $(du -sh "$APK" | cut -f1)"
+          gh release view v2.0.0-allinone --repo 745700/home 2>/dev/null
+          if [ $? -eq 0 ]; then
+            gh release upload v2.0.0-allinone "$APK" --repo 745700/home --clobber
+          else
+            gh release create v2.0.0-allinone --repo 745700/home --title "Aion Home All-in-one APK" --notes "Built with Python 3.13 from source + Android NDK" "$APK"
+          fi
