@@ -1,9 +1,8 @@
 name: Build Allinone APK
 
 on:
+  push:
   workflow_dispatch:
-  repository_dispatch:
-    types: [build-apk]
 
 jobs:
   build:
@@ -19,18 +18,14 @@ jobs:
           java-version: 17
           distribution: temurin
 
-      - name: Setup Android SDK + NDK
+      - name: Setup Android SDK
         run: |
           mkdir -p android-sdk/cmdline-tools
           cd android-sdk/cmdline-tools
-          curl -s --max-time 120 -L \
-            "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" \
-            -o cmdline-tools.zip
+          curl -s --max-time 120 -L https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdline-tools.zip
           unzip -q cmdline-tools.zip && mv cmdline-tools latest
-          
-          cd ..
-          echo "ANDROID_HOME=$PWD" >> $GITHUB_ENV
-          export ANDROID_HOME=$PWD
+          echo "ANDROID_HOME=$PWD/.." >> $GITHUB_ENV
+          export ANDROID_HOME=$PWD/..
           export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
           yes | sdkmanager --licenses > /dev/null 2>&1 || true
           sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" 2>&1 | tail -2
@@ -38,63 +33,42 @@ jobs:
       - name: Setup Android NDK
         run: |
           cd android-sdk
-          curl -s --max-time 300 -L \
-            "https://dl.google.com/android/repository/android-ndk-r26b-linux.zip" \
-            -o ndk.zip
+          curl -s --max-time 300 -L https://dl.google.com/android/repository/android-ndk-r26b-linux.zip -o ndk.zip
           unzip -q ndk.zip
           echo "ANDROID_NDK=$PWD/android-ndk-r26b" >> $GITHUB_ENV
-          echo "ANDROID_NDK_HOME=$PWD/android-ndk-r26b" >> $GITHUB_ENV
           ls $ANDROID_NDK/toolchains/llvm/prebuilt/
 
       - name: Download Python source
         run: |
-          curl -s --max-time 120 -L \
-            "https://www.python.org/ftp/python/3.13.0/Python-3.13.0.tgz" \
-            -o /tmp/Python-3.13.0.tgz
+          curl -s --max-time 120 -L https://www.python.org/ftp/python/3.13.0/Python-3.13.0.tgz -o /tmp/Python-3.13.0.tgz
           ls -lh /tmp/Python-3.13.0.tgz
 
       - name: Build Python for Android ARM64
         run: |
           export ANDROID_NDK=$ANDROID_NDK_HOME
           export PATH=$PATH:$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin
-          
           cd /tmp
           tar -xf Python-3.13.0.tgz
           cd Python-3.13.0
-          
-          # Configure cross-compile for Android ARM64
-          CFLAGS="-target aarch64-none-linux-android21 -fPIC"
-          LDFLAGS="-target aarch64-none-linux-android21"
-          
-          ./configure \
-            --host=aarch64-linux-android \
-            --target=aarch64-linux-android \
-            --prefix=/tmp/pyinstall \
-            --disable-ipv6 \
-            --without-ensurepip \
-            --disable-test-modules \
-            ac_cv_buggy_getaddrinfo=no \
-            2>&1 | tail -5
+          ./configure --host=aarch64-linux-android --target=aarch64-linux-android --prefix=/tmp/pyinstall --disable-ipv6 --without-ensurepip --disable-test-modules 2>&1 | tail -3
 
-      - name: Build and install Python
+      - name: Compile Python
         run: |
           cd /tmp/Python-3.13.0
-          make -j$(nproc) 2>&1 | tail -5
-          make install 2>&1 | tail -5
+          make -j$(nproc) 2>&1 | tail -3
+          make install 2>&1 | tail -3
           ls /tmp/pyinstall/bin/
 
       - name: Install pip packages
         run: |
-          /tmp/pyinstall/bin/python3 -m pip install --no-cache-dir --prefix=/tmp/pyenv \
-            fastapi uvicorn httpx aiosqlite pydantic pillow aiofiles \
-            websockets python-multipart jinja2 fsspec jiter 2>&1 | tail -5
+          /tmp/pyinstall/bin/python3 -m pip install --no-cache-dir --prefix=/tmp/pyenv fastapi uvicorn httpx aiosqlite pydantic pillow aiofiles websockets python-multipart jinja2 2>&1 | tail -3
 
       - name: Download Aion backend
         run: |
           rm -rf /tmp/aion-src
           git clone --depth=1 https://github.com/745700/home.git /tmp/aion-src 2>&1 | tail -2
 
-      - name: Prepare all-in-one assets
+      - name: Prepare assets
         run: |
           mkdir -p /tmp/apk/app/src/main/assets/python/lib/python3.13/site-packages
           mkdir -p /tmp/apk/app/src/main/assets/aion-chat
@@ -102,27 +76,17 @@ jobs:
           mkdir -p /tmp/apk/app/src/main/res/values
           mkdir -p /tmp/apk/app/src/main/res/xml
           mkdir -p /tmp/apk/gradle/wrapper
-          
-          # Copy Python binary and libs
           cp /tmp/pyinstall/bin/python3.13 /tmp/apk/app/src/main/assets/python/
           cp -r /tmp/pyinstall/lib/python3.13/* /tmp/apk/app/src/main/assets/python/lib/python3.13/
-          
-          # Copy site-packages
-          cp -r /tmp/pyenv/lib/python3.13/site-packages/* \
-            /tmp/apk/app/src/main/assets/python/lib/python3.13/site-packages/ 2>/dev/null || true
-          
-          # Copy aion-chat
+          cp -r /tmp/pyenv/lib/python3.13/site-packages/* /tmp/apk/app/src/main/assets/python/lib/python3.13/site-packages/ 2>/dev/null || true
           cp -r /tmp/aion-src/aion-chat/* /tmp/apk/app/src/main/assets/aion-chat/
-          
-          echo "=== Python assets ==="
-          ls /tmp/apk/app/src/main/assets/python/
-          echo "Size: $(du -sh /tmp/apk/app/src/main/assets/python/ | cut -f1)"
-          /tmp/apk/app/src/main/assets/python/python3.13 --version || echo "Binary test failed"
+          echo "Python: $(du -sh /tmp/apk/app/src/main/assets/python/ | cut -f1)"
+          echo "Aion: $(du -sh /tmp/apk/app/src/main/assets/aion-chat/ | cut -f1)"
 
       - name: Create Java launcher
         run: |
           mkdir -p /tmp/apk/app/src/main/java/com/aion/chat
-          cat > /tmp/apk/app/src/main/java/com/aion/chat/PythonLauncher.java << 'JAVAEOF'
+          cat > /tmp/apk/app/src/main/java/com/aion/chat/PythonLauncher.java << 'JAVAFILE'
 package com.aion.chat;
 import android.app.Activity;
 import android.os.Bundle;
@@ -131,12 +95,10 @@ import android.widget.ScrollView;
 import android.widget.LinearLayout;
 import java.io.*;
 import java.nio.file.*;
-
 public class PythonLauncher extends Activity {
     private Process backend;
     private StringBuilder sb = new StringBuilder();
     private TextView log;
-
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
@@ -149,37 +111,31 @@ public class PythonLauncher extends Activity {
         ll.setOrientation(LinearLayout.VERTICAL);
         ll.addView(sc);
         setContentView(ll);
-        append("Aion Backend starting...");
+        append("Aion starting...");
         new Thread(this::boot).start();
     }
-
     private void boot() {
         try {
             File fd = getFilesDir();
             File pyDir = new File(fd, "python");
             File aionDir = new File(fd, "aion-chat");
             File pyBin = new File(pyDir, "python3.13");
-
             if (!pyBin.exists()) {
-                append("Extracting Python (" + pyBin.getParentFile().getAbsolutePath() + ")...");
+                append("Extracting Python...");
                 pyDir.mkdirs();
                 copyAssets("python", pyDir);
                 pyBin.setExecutable(true, false);
-                append("Python: " + (pyBin.exists() ? pyBin.length() + " bytes" : "MISSING"));
+                append("Python: " + (pyBin.exists() ? pyBin.length()+" bytes" : "MISSING"));
             } else {
-                append("Python found: " + pyBin.length());
+                append("Python: " + pyBin.length() + " bytes");
             }
-
             if (!aionDir.exists() || aionDir.list().length < 3) {
                 append("Extracting backend...");
                 aionDir.mkdirs();
                 copyAssets("aion-chat", aionDir);
             }
-            append("Backend ready");
-
-            File sitePkgs = new File(pyDir, "lib/python3.13/site-packages");
             append("Starting server...");
-
+            File sitePkgs = new File(pyDir, "lib/python3.13/site-packages");
             ProcessBuilder pb = new ProcessBuilder(
                 pyBin.getAbsolutePath(), "-m", "uvicorn",
                 "main:app", "--host", "127.0.0.1", "--port", "8080"
@@ -189,41 +145,30 @@ public class PythonLauncher extends Activity {
             pb.directory(aionDir);
             pb.redirectErrorStream(true);
             backend = pb.start();
-
             BufferedReader r = new BufferedReader(new InputStreamReader(backend.getInputStream()));
             String l; int n = 0;
             while ((l = r.readLine()) != null && n++ < 15) append("[srv] " + l);
-
             sleep(3000);
-
             if (backend.isAlive()) {
                 append("Server OK!");
                 sleep(500);
                 runOnUiThread(() -> {
                     try {
-                        android.content.Intent i = new android.content.Intent(this,
-                            Class.forName("com.aion.chat.WebViewActivity"));
+                        android.content.Intent i = new android.content.Intent(this, Class.forName("com.aion.chat.WebViewActivity"));
                         i.putExtra("url", "http://127.0.0.1:8080/chat");
                         startActivity(i);
                         finish();
-                    } catch (Exception e) {
-                        append("Open http://127.0.0.1:8080/chat manually");
-                    }
+                    } catch (Exception e) { append("Open manually: http://127.0.0.1:8080/chat"); }
                 });
             } else {
-                append("ERROR: died, exit=" + backend.exitValue());
+                append("ERROR: exit=" + backend.exitValue());
             }
-        } catch (Exception e) {
-            append("FATAL: " + e.getClass().getSimpleName() + ": " + e.getMessage());
-            e.printStackTrace();
-        }
+        } catch (Exception e) { append("FATAL: " + e.getMessage()); }
     }
-
     private void append(String msg) {
         sb.append(msg).append("\n");
         runOnUiThread(() -> { if (log != null) log.setText(sb.toString()); });
     }
-
     private void copyAssets(String src, File dst) {
         try {
             String[] fs = getAssets().list(src);
@@ -236,18 +181,17 @@ public class PythonLauncher extends Activity {
             }
         } catch (IOException e) { append("copy error: " + e); }
     }
-
     @Override
     protected void onDestroy() {
         super.onDestroy();
         if (backend != null && backend.isAlive()) backend.destroy();
     }
 }
-JAVAEOF
+JAVAFILE
 
       - name: Create WebView activity
         run: |
-          cat > /tmp/apk/app/src/main/java/com/aion/chat/WebViewActivity.java << 'JAVAEOF'
+          cat > /tmp/apk/app/src/main/java/com/aion/chat/WebViewActivity.java << 'JAVAFILE'
 package com.aion.chat;
 import android.os.Bundle;
 import android.webkit.*;
@@ -274,7 +218,7 @@ public class WebViewActivity extends Activity {
         Toast.makeText(this, url, Toast.LENGTH_SHORT).show();
     }
 }
-JAVAEOF
+JAVAFILE
 
       - name: Create AndroidManifest and resources
         run: |
@@ -300,7 +244,6 @@ JAVAEOF
     </application>
 </manifest>
 XMLEOF
-
           mkdir -p /tmp/apk/app/src/main/res/xml
           cat > /tmp/apk/app/src/main/res/xml/network_security_config.xml << 'XMLEOF'
 <?xml version="1.0" encoding="utf-8"?>
@@ -343,34 +286,30 @@ PROPS
           cat > /tmp/apk/settings.gradle << 'SETTINGS'
 rootProject.name = "AionHome"
 SETTINGS
-          mkdir -p /tmp/apk/gradle/wrapper
 
       - name: Build APK
         env:
           ANDROID_HOME: /tmp/android-sdk
+          ANDROID_NDK_HOME: $ANDROID_NDK_HOME
         run: |
           export ANDROID_HOME=/tmp/android-sdk
           export ANDROID_NDK_HOME=$ANDROID_NDK_HOME
           export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
-
           cd /tmp/apk
-          curl -s --max-time 180 "https://services.gradle.org/distributions/gradle-8.4-bin.zip" -o /tmp/gradle.zip
+          curl -s --max-time 180 https://services.gradle.org/distributions/gradle-8.4-bin.zip -o /tmp/gradle.zip
           unzip -q -o /tmp/gradle.zip -d /tmp/
           /tmp/gradle-8.4/bin/gradle wrapper --gradle-version 8.4 2>&1 | tail -2
           /tmp/gradle-8.4/bin/gradle assembleDebug --no-daemon 2>&1 | tail -30
 
-      - name: Verify and upload APK
+      - name: Upload APK to Release
         if: success()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           APK=/tmp/apk/app/build/outputs/apk/debug/app-debug.apk
           if [ -f "$APK" ]; then
-            SIZE=$(stat -c%s "$APK")
-            echo "APK size: $((SIZE/1024/1024)) MB"
-            ls -lh "$APK"
-            gh release view v2.0.0-allinone --repo 745700/home 2>/dev/null &&               gh release upload v2.0.0-allinone "$APK" --repo 745700/home 2>/dev/null ||               gh release create v2.0.0-allinone --repo 745700/home                 --title "Aion Home All-in-one APK"                 --notes "内置 Python 3.13 后端，装完即用。" "$APK"
+            echo "APK: $(du -sh $APK | cut -f1)"
+            gh release view v2.0.0-allinone --repo 745700/home 2>/dev/null &&               gh release upload v2.0.0-allinone "$APK" --repo 745700/home --clobber ||               gh release create v2.0.0-allinone --repo 745700/home                 --title "Aion Home All-in-one APK"                 --notes "Built from source Python 3.13 + Android NDK" "$APK"
           else
-            echo "APK NOT FOUND at $APK"
-            find /tmp/apk -name "*.apk" 2>/dev/null
+            find /tmp/apk -name "*.apk" 2>/dev/null || echo "NO APK FOUND"
           fi
