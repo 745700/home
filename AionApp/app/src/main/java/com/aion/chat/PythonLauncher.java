@@ -9,127 +9,119 @@ import java.io.*;
 import java.nio.file.*;
 
 public class PythonLauncher extends Activity {
-    private static final int PORT = 8080;
-    private Process pythonProcess;
-    
+    private Process backend;
+    private final StringBuilder sb = new StringBuilder();
+    private TextView log;
+
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(16, 16, 16, 16);
-        
-        TextView log = new TextView(this);
-        log.setTextSize(12);
-        ScrollView scroll = new ScrollView(this);
-        scroll.addView(log);
-        layout.addView(scroll);
-        setContentView(layout);
-        
-        append(log, "Aion Backend starting...");
-        
-        File pythonDir = new File(getFilesDir(), "python");
-        File pythonBin = new File(pythonDir, "python3.13");
-        
-        if (!pythonBin.exists()) {
-            append(log, "Extracting Python...");
-            pythonDir.mkdirs();
-            copyAssetFolder(getAssets(), "python", pythonDir);
-            pythonBin.setExecutable(true, false);
-            append(log, "Python extracted: " + pythonBin.getAbsolutePath());
-        }
-        
-        append(log, "Python binary: " + pythonBin.exists() + " (" + pythonBin.length() + " bytes)");
-        
-        File aionDir = new File(getFilesDir(), "aion-chat");
-        if (!aionDir.exists() || aionDir.list().length < 5) {
-            append(log, "Extracting aion-chat...");
-            aionDir.mkdirs();
-            copyAssetFolder(getAssets(), "aion-chat", aionDir);
-        }
-        append(log, "Aion dir: " + aionDir.getAbsolutePath());
-        
-        File sitePackages = new File(pythonDir, "lib/python3.13/site-packages");
-        String pythonPath = pythonDir.getAbsolutePath() + ":" + sitePackages.getAbsolutePath();
-        append(log, "PYTHONPATH: " + pythonPath);
-        
-        append(log, "Starting backend on port " + PORT + "...");
-        
+    protected void onCreate(Bundle b) {
+        super.onCreate(b);
+        log = new TextView(this);
+        log.setTextSize(11);
+        log.setPadding(16, 16, 16, 16);
+        ScrollView sc = new ScrollView(this);
+        sc.addView(log);
+        LinearLayout ll = new LinearLayout(this);
+        ll.setOrientation(LinearLayout.VERTICAL);
+        ll.addView(sc);
+        setContentView(ll);
+        append("Aion starting...");
+        new Thread(this::boot).start();
+    }
+
+    private void boot() {
         try {
+            File fd = getFilesDir();
+            File pyDir = new File(fd, "python");
+            File aionDir = new File(fd, "aion-chat");
+            File pyBin = new File(pyDir, "python3.13");
+
+            if (!pyBin.exists()) {
+                append("Extracting Python...");
+                pyDir.mkdirs();
+                copyAssets("python", pyDir);
+                pyBin.setExecutable(true, false);
+                append("Python: " + (pyBin.exists() ? pyBin.length() + " bytes" : "MISSING"));
+            } else {
+                append("Python: " + pyBin.length() + " bytes");
+            }
+
+            if (!aionDir.exists() || aionDir.list().length < 3) {
+                append("Extracting backend...");
+                aionDir.mkdirs();
+                copyAssets("aion-chat", aionDir);
+            }
+
+            append("Starting server...");
+            File sitePkgs = new File(pyDir, "lib/python3.13/site-packages");
             ProcessBuilder pb = new ProcessBuilder(
-                pythonBin.getAbsolutePath(),
-                "-m", "uvicorn",
-                "main:app",
-                "--host", "127.0.0.1",
-                "--port", String.valueOf(PORT)
+                pyBin.getAbsolutePath(), "-m", "uvicorn",
+                "main:app", "--host", "127.0.0.1", "--port", "8080"
             );
-            pb.environment().put("PYTHONPATH", pythonPath);
-            pb.environment().put("PYTHONHOME", pythonDir.getAbsolutePath());
+            pb.environment().put("PYTHONPATH", pyDir.getAbsolutePath() + ":" + sitePkgs.getAbsolutePath());
             pb.environment().put("TERM", "xterm");
             pb.directory(aionDir);
             pb.redirectErrorStream(true);
-            
-            pythonProcess = pb.start();
-            
-            BufferedReader br = new BufferedReader(new InputStreamReader(pythonProcess.getInputStream()));
-            String line;
-            int count = 0;
-            while ((line = br.readLine()) != null && count < 20) {
-                append(log, "[py] " + line);
-                count++;
+            backend = pb.start();
+
+            BufferedReader r = new BufferedReader(new InputStreamReader(backend.getInputStream()));
+            String l;
+            int n = 0;
+            while ((l = r.readLine()) != null && n++ < 15) {
+                append("[srv] " + l);
             }
-            
-            append(log, "Backend started, pid=" + pythonProcess.hashCode());
-            Thread.sleep(3000);
-            
-            if (pythonProcess.isAlive()) {
-                append(log, "SUCCESS: Backend running!");
-                android.content.Intent intent = new android.content.Intent(this, WebViewActivity.class);
-                intent.putExtra("url", "http://127.0.0.1:" + PORT + "/chat");
-                startActivity(intent);
-                finish();
+
+            sleep(3000);
+            if (backend.isAlive()) {
+                append("Server OK!");
+                sleep(500);
+                runOnUiThread(() -> {
+                    try {
+                        android.content.Intent i = new android.content.Intent(this, Class.forName("com.aion.chat.WebViewActivity"));
+                        i.putExtra("url", "http://127.0.0.1:8080/chat");
+                        startActivity(i);
+                        finish();
+                    } catch (Exception e) {
+                        append("Open manually");
+                    }
+                });
             } else {
-                append(log, "ERROR: Process died, exit=" + pythonProcess.exitValue());
+                append("ERROR: exit=" + backend.exitValue());
             }
         } catch (Exception e) {
-            append(log, "ERROR: " + e.getClass().getName() + ": " + e.getMessage());
-            e.printStackTrace();
+            append("FATAL: " + e.getMessage());
         }
     }
-    
-    private void append(TextView tv, String msg) {
-        final String m = msg;
-        runOnUiThread(() -> tv.append(m + "\\n"));
+
+    private void append(String msg) {
+        sb.append(msg).append("\n");
+        runOnUiThread(() -> {
+            if (log != null) log.setText(sb.toString());
+        });
     }
-    
-    private void copyAssetFolder(android.content.res.AssetManager am, String src, File dst) {
+
+    private void copyAssets(String src, File dst) {
         try {
-            String[] files = am.list(src);
-            if (files == null || files.length == 0) {
-                copyAssetFile(am, src, new File(dst, new java.io.File(src).getName()));
+            String[] fs = getAssets().list(src);
+            if (fs == null || fs.length == 0) {
+                File out = new File(dst, new java.io.File(src).getName());
+                try (InputStream i = getAssets().open(src)) {
+                    Files.copy(i, out.toPath());
+                }
             } else {
                 dst.mkdirs();
-                for (String f : files) {
-                    copyAssetFolder(am, src + "/" + f, dst);
+                for (String f : fs) {
+                    copyAssets(src + "/" + f, dst);
                 }
             }
-        } catch (IOException e) {}
+        } catch (IOException e) {
+            append("copy error: " + e);
+        }
     }
-    
-    private void copyAssetFile(android.content.res.AssetManager am, String src, File dst) {
-        try {
-            InputStream is = am.open(src);
-            Files.copy(is, dst.toPath());
-            is.close();
-        } catch (IOException e) {}
-    }
-    
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (pythonProcess != null && pythonProcess.isAlive()) {
-            pythonProcess.destroy();
-        }
+        if (backend != null && backend.isAlive()) backend.destroy();
     }
 }
