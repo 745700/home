@@ -1,0 +1,38 @@
+name: TestEnv
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Android NDK
+        run: |
+          mkdir -p android-sdk
+          cd android-sdk
+          curl -s --max-time 300 -L https://dl.google.com/android/repository/android-ndk-r26b-linux.zip -o ndk.zip
+          unzip -q ndk.zip
+          echo "ANDROID_NDK=$PWD/android-ndk-r26b" >> $GITHUB_ENV
+          echo "NDK done"
+
+      - name: Create project
+        run: |
+          mkdir -p /tmp/apk/app/src/main/java/com/aion/chat
+          printf '%s\n' 'package com.aion.chat;' > /tmp/apk/app/src/main/java/com/aion/chat/Test.java
+          printf '%s\n' 'public class Test {}' >> /tmp/apk/app/src/main/java/com/aion/chat/Test.java
+          echo "Project created"
+
+      - name: Build APK
+        env:
+          ANDROID_HOME: /tmp/android-sdk
+          ANDROID_NDK_HOME: $ANDROID_NDK_HOME
+        run: |
+          export ANDROID_HOME=/tmp/android-sdk
+          export ANDROID_NDK_HOME=$ANDROID_NDK_HOME
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
+          echo "Build done"
